@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
+  <title id="title">My Diary</title>
+  <desc id="desc">A warm diary logo with a page and pen</desc>
+  <defs>
+    <linearGradient id="paper" x1="18" y1="12" x2="78" y2="84" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff9ed"/>
+      <stop offset="1" stop-color="#f0d3a5"/>
+    </linearGradient>
+    <linearGradient id="cover" x1="8" y1="16" x2="78" y2="88" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#b7783d"/>
+      <stop offset="1" stop-color="#6f4528"/>
+    </linearGradient>
+  </defs>
+  <rect width="96" height="96" rx="24" fill="#fff3df"/>
+  <path d="M23 18h42c8.8 0 16 7.2 16 16v44c0 2.8-2.2 5-5 5H29c-7.7 0-14-6.3-14-14V26c0-4.4 3.6-8 8-8Z" fill="url(#cover)"/>
+  <path d="M31 16h37c7.2 0 13 5.8 13 13v48c0 2.2-1.8 4-4 4H31c-6.6 0-12-5.4-12-12V28c0-6.6 5.4-12 12-12Z" fill="url(#paper)" stroke="#8b5a2b" stroke-width="2"/>
+  <path d="M32 30h28M32 42h35M32 54h25" fill="none" stroke="#b98a56" stroke-width="3" stroke-linecap="round"/>
+  <path d="M61 66 77 50c2-2 5.2-2 7.1 0 2 2 2 5.1 0 7.1L68.2 73.2 58 76l3-10Z" fill="#2f6f68"/>
+  <path d="m61 66 7.2 7.2" stroke="#fff9ed" stroke-width="2.4" stroke-linecap="round"/>
+  <circle cx="71" cy="31" r="4" fill="#d97b4f"/>
+</svg>
