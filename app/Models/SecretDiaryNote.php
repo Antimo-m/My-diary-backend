@@ -5,23 +5,23 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class KanbanColumn extends Model
+class SecretDiaryNote extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'project_id',
+        'entry_date',
         'title',
-        'color',
-        'position',
+        'body',
+        'cover_image',
+        'photo_dedication',
     ];
 
     protected function casts(): array
     {
         return [
-            'position' => 'integer',
+            'entry_date' => 'date',
         ];
     }
 
@@ -30,13 +30,10 @@ class KanbanColumn extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function project(): BelongsTo
+    public function coverImageUrl(): ?string
     {
-        return $this->belongsTo(Project::class);
-    }
-
-    public function tasks(): HasMany
-    {
-        return $this->hasMany(KanbanTask::class);
+        return $this->cover_image
+            ? '/storage/'.ltrim($this->cover_image, '/')
+            : null;
     }
 }

@@ -14,6 +14,12 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
+        $middleware->appendToGroup('api', [
+            \App\Http\Middleware\SetApiLocale::class,
+        ]);
+        $middleware->alias([
+            'secret-diary.unlocked' => \App\Http\Middleware\EnsureSecretDiaryUnlocked::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

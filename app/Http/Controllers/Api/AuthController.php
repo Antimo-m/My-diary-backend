@@ -10,6 +10,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
@@ -61,6 +63,54 @@ class AuthController extends Controller
         ]);
     }
 
+    public function forgotPassword(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email'],
+        ]);
+
+        $status = Password::sendResetLink($validated);
+
+        if ($status === Password::RESET_THROTTLED) {
+            throw ValidationException::withMessages([
+                'email' => __($status),
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Se l email e registrata, riceverai un link per reimpostare la password.',
+        ]);
+    }
+
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'token' => ['required', 'string'],
+            'email' => ['required', 'email'],
+            'password' => ['required', 'confirmed', Rules\Password::defaults()],
+        ]);
+
+        $status = Password::reset(
+            $validated,
+            function (User $user, string $password): void {
+                $user->forceFill([
+                    'password' => Hash::make($password),
+                    'remember_token' => Str::random(60),
+                ])->save();
+            }
+        );
+
+        if ($status !== Password::PASSWORD_RESET) {
+            throw ValidationException::withMessages([
+                'email' => __($status),
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Password aggiornata.',
+        ]);
+    }
+
     public function user(Request $request): JsonResponse
     {
         return response()->json([
@@ -74,6 +124,8 @@ class AuthController extends Controller
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'show_welcome_modal' => ['sometimes', 'boolean'],
             'email_notifications_enabled' => ['sometimes', 'boolean'],
+            'locale' => ['sometimes', 'required', Rule::in(['it', 'en'])],
+            'timezone' => ['sometimes', 'required', 'timezone'],
             'default_task_reminder' => [
                 'sometimes',
                 'required',

@@ -24,6 +24,7 @@ class KanbanTask extends Model
     protected $fillable = [
         'task_date',
         'kanban_column_id',
+        'project_id',
         'title',
         'description',
         'due_date',
@@ -34,6 +35,8 @@ class KanbanTask extends Model
         'reminder_sent_at',
         'color',
         'status',
+        'is_completed',
+        'completed_at',
         'position',
     ];
 
@@ -45,6 +48,8 @@ class KanbanTask extends Model
             'custom_reminder_at' => 'datetime',
             'reminder_at' => 'datetime',
             'reminder_sent_at' => 'datetime',
+            'is_completed' => 'boolean',
+            'completed_at' => 'datetime',
             'position' => 'integer',
         ];
     }
@@ -57,6 +62,11 @@ class KanbanTask extends Model
     public function column(): BelongsTo
     {
         return $this->belongsTo(KanbanColumn::class, 'kanban_column_id');
+    }
+
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class);
     }
 
     public function labels(): BelongsToMany

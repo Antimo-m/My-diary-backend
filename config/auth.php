@@ -99,6 +99,13 @@ return [
             'expire' => 60,
             'throttle' => 60,
         ],
+
+        'secret_diary' => [
+            'provider' => 'users',
+            'table' => 'secret_diary_password_reset_tokens',
+            'expire' => 30,
+            'throttle' => 90,
+        ],
     ],
 
     /*

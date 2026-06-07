@@ -20,8 +20,10 @@ class TaskReminderMail extends Mailable
 
     public function envelope(): Envelope
     {
+        $subject = ($this->task->user?->locale === 'en' ? 'Reminder' : 'Promemoria').": {$this->task->title}";
+
         return new Envelope(
-            subject: 'Promemoria attività imminente',
+            subject: $subject,
         );
     }
 

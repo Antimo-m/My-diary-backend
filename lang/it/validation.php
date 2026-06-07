@@ -1,0 +1,54 @@
+<?php
+
+return [
+    'accepted' => 'Il campo :attribute deve essere accettato.',
+    'array' => 'Il campo :attribute deve essere una lista.',
+    'before_or_equal' => 'Il campo :attribute deve essere precedente o uguale a :date.',
+    'boolean' => 'Il campo :attribute deve essere vero o falso.',
+    'confirmed' => 'La conferma del campo :attribute non coincide.',
+    'date' => 'Il campo :attribute deve essere una data valida.',
+    'email' => 'Il campo :attribute deve essere un indirizzo email valido.',
+    'image' => 'Il campo :attribute deve essere una immagine.',
+    'integer' => 'Il campo :attribute deve essere un numero intero.',
+    'max' => [
+        'array' => 'Il campo :attribute non puo contenere piu di :max elementi.',
+        'file' => 'Il file :attribute non puo superare :max kilobyte.',
+        'numeric' => 'Il campo :attribute non puo essere maggiore di :max.',
+        'string' => 'Il campo :attribute non puo superare :max caratteri.',
+    ],
+    'min' => [
+        'array' => 'Il campo :attribute deve contenere almeno :min elementi.',
+        'file' => 'Il file :attribute deve essere almeno :min kilobyte.',
+        'numeric' => 'Il campo :attribute deve essere almeno :min.',
+        'string' => 'Il campo :attribute deve contenere almeno :min caratteri.',
+    ],
+    'mimes' => 'Il file :attribute deve essere di tipo: :values.',
+    'regex' => 'Il formato del campo :attribute non e valido.',
+    'required' => 'Il campo :attribute e obbligatorio.',
+    'required_if' => 'Il campo :attribute e obbligatorio.',
+    'string' => 'Il campo :attribute deve essere testo.',
+    'unique' => 'Questo :attribute e gia stato utilizzato.',
+
+    'password' => [
+        'letters' => 'Il campo :attribute deve contenere almeno una lettera.',
+        'mixed' => 'Il campo :attribute deve contenere almeno una lettera maiuscola e una minuscola.',
+        'numbers' => 'Il campo :attribute deve contenere almeno un numero.',
+        'symbols' => 'Il campo :attribute deve contenere almeno un carattere speciale.',
+        'uncompromised' => 'Il campo :attribute e comparso in una fuga di dati. Scegli una password diversa.',
+    ],
+
+    'attributes' => [
+        'body' => 'testo',
+        'color' => 'colore',
+        'cover_image' => 'immagine',
+        'custom_reminder_at' => 'promemoria personalizzato',
+        'date' => 'data',
+        'email' => 'email',
+        'entry_date' => 'data',
+        'name' => 'nome',
+        'password' => 'password',
+        'photo_dedication' => 'dedica',
+        'title' => 'titolo',
+        'token' => 'token',
+    ],
+];

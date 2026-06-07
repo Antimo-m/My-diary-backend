@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\KanbanColumn;
 use App\Models\KanbanLabel;
 use App\Models\KanbanTask;
+use App\Models\Project;
 use App\Services\TaskReminderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,18 +21,24 @@ class KanbanController extends Controller
 
     public function board(Request $request): JsonResponse
     {
+        return $this->daily($request);
+    }
+
+    public function daily(Request $request): JsonResponse
+    {
         $validated = $request->validate([
             'date' => ['nullable', 'date'],
         ]);
 
         $selectedDate = $validated['date'] ?? today()->toDateString();
-        $columns = $this->ensureBoardColumns($request);
+        $columns = $this->ensureBoardColumns($request, null);
         $labels = $this->ensureBoardLabels($request);
         $this->attachLegacyTasksToColumns($request, $columns);
 
         $tasks = $request->user()
             ->kanbanTasks()
-            ->with('labels')
+            ->with(['labels', 'user'])
+            ->whereNull('project_id')
             ->whereDate('task_date', $selectedDate)
             ->orderBy('position')
             ->orderBy('id')
@@ -45,14 +52,55 @@ class KanbanController extends Controller
         ]);
     }
 
+    public function projects(Request $request): JsonResponse
+    {
+        $projects = $request->user()
+            ->projects()
+            ->withCount('tasks')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json([
+            'data' => $projects->map(fn (Project $project): array => $this->serializeProject($project)),
+        ]);
+    }
+
+    public function project(Request $request, string $id): JsonResponse
+    {
+        $project = $request->user()
+            ->projects()
+            ->whereKey($id)
+            ->firstOrFail();
+
+        $columns = $this->ensureBoardColumns($request, $project->id);
+        $labels = $this->ensureBoardLabels($request);
+
+        $tasks = $request->user()
+            ->kanbanTasks()
+            ->with(['labels', 'user'])
+            ->where('project_id', $project->id)
+            ->orderBy('position')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('kanban_column_id');
+
+        return response()->json([
+            'project' => $this->serializeProject($project),
+            'columns' => $columns->map(fn (KanbanColumn $column): array => $this->serializeColumn($column, $tasks->get($column->id, collect()))),
+            'labels' => $labels->map(fn (KanbanLabel $label): array => $this->serializeLabel($label)),
+        ]);
+    }
+
     public function storeColumn(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:80'],
             'color' => ['nullable', 'string', 'regex:/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/'],
+            'project_id' => ['nullable', 'integer'],
         ]);
 
-        $validated['position'] = (int) $request->user()->kanbanColumns()->max('position') + 1;
+        $validated['project_id'] = $this->resolveProjectId($request, $validated);
+        $validated['position'] = (int) $this->boardColumnsQuery($request, $validated['project_id'])->max('position') + 1;
         $validated['color'] = $validated['color'] ?? '#06b6d4';
 
         $column = $request->user()->kanbanColumns()->create($validated);
@@ -84,11 +132,12 @@ class KanbanController extends Controller
         $validated = $request->validate([
             'ordered_ids' => ['required', 'array'],
             'ordered_ids.*' => ['integer'],
+            'project_id' => ['nullable', 'integer'],
         ]);
+        $projectId = $this->resolveProjectId($request, $validated);
 
         foreach ($validated['ordered_ids'] as $position => $columnId) {
-            $request->user()
-                ->kanbanColumns()
+            $this->boardColumnsQuery($request, $projectId)
                 ->whereKey($columnId)
                 ->update(['position' => $position]);
         }
@@ -99,8 +148,7 @@ class KanbanController extends Controller
     public function destroyColumn(Request $request, string $column): JsonResponse
     {
         $kanbanColumn = $this->findOwnedColumn($request, $column);
-        $fallbackColumn = $request->user()
-            ->kanbanColumns()
+        $fallbackColumn = $this->boardColumnsQuery($request, $kanbanColumn->project_id)
             ->where('id', '!=', $kanbanColumn->id)
             ->orderBy('position')
             ->first();
@@ -111,7 +159,13 @@ class KanbanController extends Controller
             ], 422);
         }
 
-        $kanbanColumn->tasks()->update(['kanban_column_id' => $fallbackColumn->id]);
+        $kanbanColumn->tasks()
+            ->when(
+                $kanbanColumn->project_id,
+                fn ($query, $projectId) => $query->where('project_id', $projectId),
+                fn ($query) => $query->whereNull('project_id'),
+            )
+            ->update(['kanban_column_id' => $fallbackColumn->id]);
         $kanbanColumn->delete();
 
         return response()->json(['message' => 'Colonna eliminata.']);
@@ -120,17 +174,20 @@ class KanbanController extends Controller
     public function storeTask(Request $request): JsonResponse
     {
         $validated = $this->validateTask($request, true);
+        $validated['project_id'] = $this->resolveProjectId($request, $validated);
+        $validated['task_date'] = $validated['task_date'] ?? today()->toDateString();
         $this->validateReminderTime($validated);
         $validated['kanban_column_id'] = $this->resolveColumnId($request, $validated);
         $validated['status'] = $validated['status'] ?? KanbanTask::STATUS_TODO;
         $validated['position'] = $validated['position'] ?? $this->nextTaskPosition($request, $validated);
+        $validated['_timezone'] = $request->user()->timezone ?? config('app.timezone');
         $validated = $this->taskReminderService->prepareTaskAttributes($validated);
         $labelIds = $this->ownedLabelIds($request, $validated['label_ids'] ?? []);
         unset($validated['label_ids']);
 
         $task = $request->user()->kanbanTasks()->create($validated);
         $task->labels()->sync($labelIds);
-        $task->load('labels');
+        $task->load(['labels', 'user']);
 
         return response()->json([
             'message' => 'Attivita creata.',
@@ -144,10 +201,18 @@ class KanbanController extends Controller
         $validated = $this->validateTask($request, false);
         $this->validateReminderTime($this->taskValidationContext($kanbanTask, $validated));
 
-        if (array_key_exists('kanban_column_id', $validated)) {
-            $validated['kanban_column_id'] = $this->resolveColumnId($request, $validated);
+        if (array_key_exists('project_id', $validated)) {
+            $validated['project_id'] = $this->resolveProjectId($request, $validated);
         }
 
+        if (array_key_exists('kanban_column_id', $validated)) {
+            $validated['kanban_column_id'] = $this->resolveColumnId($request, [
+                ...$validated,
+                'project_id' => $validated['project_id'] ?? $kanbanTask->project_id,
+            ]);
+        }
+
+        $validated['_timezone'] = $request->user()->timezone ?? config('app.timezone');
         $validated = $this->taskReminderService->prepareTaskAttributes($validated);
 
         $labelsWereSubmitted = array_key_exists('label_ids', $validated);
@@ -160,11 +225,11 @@ class KanbanController extends Controller
             $kanbanTask->labels()->sync($labelIds);
         }
 
-        $kanbanTask->load('labels');
+        $kanbanTask->load(['labels', 'user']);
 
         return response()->json([
             'message' => 'Attivita aggiornata.',
-            'data' => $this->serializeTask($kanbanTask->fresh('labels')),
+            'data' => $this->serializeTask($kanbanTask->fresh(['labels', 'user'])),
         ]);
     }
 
@@ -178,7 +243,7 @@ class KanbanController extends Controller
             'ordered_ids' => ['nullable', 'array'],
             'ordered_ids.*' => ['integer'],
         ]);
-        $column = $this->findOwnedColumn($request, (string) $validated['kanban_column_id']);
+        $column = $this->findOwnedColumnInProject($request, (string) $validated['kanban_column_id'], $kanbanTask->project_id);
 
         $kanbanTask->update([
             'kanban_column_id' => $column->id,
@@ -190,14 +255,18 @@ class KanbanController extends Controller
             $request->user()
                 ->kanbanTasks()
                 ->whereKey($taskId)
-                ->whereDate('task_date', $kanbanTask->task_date)
                 ->where('kanban_column_id', $column->id)
+                ->when(
+                    $kanbanTask->project_id,
+                    fn ($query, $projectId) => $query->where('project_id', $projectId),
+                    fn ($query) => $query->whereNull('project_id')->whereDate('task_date', $kanbanTask->task_date),
+                )
                 ->update(['position' => $position]);
         }
 
         return response()->json([
             'message' => 'Attivita spostata.',
-            'data' => $this->serializeTask($kanbanTask->fresh('labels')),
+            'data' => $this->serializeTask($kanbanTask->fresh(['labels', 'user'])),
         ]);
     }
 
@@ -241,7 +310,8 @@ class KanbanController extends Controller
     private function validateTask(Request $request, bool $creating): array
     {
         return $request->validate([
-            'task_date' => [$creating ? 'required' : 'sometimes', 'date'],
+            'task_date' => [$creating ? 'required_without:project_id' : 'sometimes', 'date'],
+            'project_id' => ['nullable', 'integer'],
             'kanban_column_id' => ['nullable', 'integer'],
             'title' => [$creating ? 'required' : 'sometimes', 'string', 'max:140'],
             'description' => ['nullable', 'string', 'max:1000'],
@@ -259,11 +329,15 @@ class KanbanController extends Controller
 
     private function taskValidationContext(KanbanTask $task, array $validated): array
     {
+        $task->loadMissing('user');
+        $timezone = $task->user?->timezone ?? config('app.timezone');
+
         return array_merge([
             'due_date' => $task->due_date?->toDateString(),
             'due_time' => $task->due_time,
             'reminder_option' => $task->reminder_option,
-            'custom_reminder_at' => $task->custom_reminder_at?->format('Y-m-d\TH:i'),
+            'custom_reminder_at' => $this->formatRawTaskDateTimeForUser($task, 'custom_reminder_at', $timezone),
+            '_timezone' => $timezone,
         ], $validated);
     }
 
@@ -271,12 +345,6 @@ class KanbanController extends Controller
     {
         if (($attributes['reminder_option'] ?? null) !== 'custom') {
             return;
-        }
-
-        if (empty($attributes['due_date'])) {
-            throw ValidationException::withMessages([
-                'due_date' => 'Imposta prima la scadenza dell attivita.',
-            ]);
         }
 
         if ($this->taskReminderService->reminderIsAfterDueDate($attributes)) {
@@ -309,11 +377,18 @@ class KanbanController extends Controller
             ->firstOrFail();
     }
 
+    private function findOwnedColumnInProject(Request $request, string $id, ?int $projectId): KanbanColumn
+    {
+        return $this->boardColumnsQuery($request, $projectId)
+            ->whereKey($id)
+            ->firstOrFail();
+    }
+
     private function findOwnedTask(Request $request, string $id): KanbanTask
     {
         return $request->user()
             ->kanbanTasks()
-            ->with('labels')
+            ->with(['labels', 'user'])
             ->whereKey($id)
             ->firstOrFail();
     }
@@ -326,10 +401,25 @@ class KanbanController extends Controller
             ->firstOrFail();
     }
 
+    private function resolveProjectId(Request $request, array $validated): ?int
+    {
+        if (! array_key_exists('project_id', $validated) || $validated['project_id'] === null) {
+            return null;
+        }
+
+        return (int) $request->user()
+            ->projects()
+            ->whereKey($validated['project_id'])
+            ->firstOrFail()
+            ->id;
+    }
+
     private function resolveColumnId(Request $request, array $validated): int
     {
+        $projectId = $validated['project_id'] ?? null;
+
         if (! empty($validated['kanban_column_id'])) {
-            return $this->findOwnedColumn($request, (string) $validated['kanban_column_id'])->id;
+            return $this->findOwnedColumnInProject($request, (string) $validated['kanban_column_id'], $projectId)->id;
         }
 
         $status = $validated['status'] ?? KanbanTask::STATUS_TODO;
@@ -338,7 +428,7 @@ class KanbanController extends Controller
             KanbanTask::STATUS_DONE => 2,
             default => 0,
         };
-        $columns = $this->ensureBoardColumns($request);
+        $columns = $this->ensureBoardColumns($request, $projectId);
 
         return (int) $columns->get($index)?->id
             ?: (int) $columns->first()->id;
@@ -348,15 +438,29 @@ class KanbanController extends Controller
     {
         return (int) $request->user()
             ->kanbanTasks()
-            ->whereDate('task_date', $validated['task_date'])
             ->where('kanban_column_id', $validated['kanban_column_id'])
+            ->when(
+                $validated['project_id'] ?? null,
+                fn ($query, $projectId) => $query->where('project_id', $projectId),
+                fn ($query) => $query->whereNull('project_id')->whereDate('task_date', $validated['task_date']),
+            )
             ->max('position') + 1;
     }
 
-    private function ensureBoardColumns(Request $request)
+    private function boardColumnsQuery(Request $request, ?int $projectId)
     {
-        $columns = $request->user()
+        return $request->user()
             ->kanbanColumns()
+            ->when(
+                $projectId,
+                fn ($query, $id) => $query->where('project_id', $id),
+                fn ($query) => $query->whereNull('project_id'),
+            );
+    }
+
+    private function ensureBoardColumns(Request $request, ?int $projectId = null)
+    {
+        $columns = $this->boardColumnsQuery($request, $projectId)
             ->orderBy('position')
             ->get();
 
@@ -365,15 +469,14 @@ class KanbanController extends Controller
         }
 
         foreach ([
-            ['title' => 'Da fare', 'color' => '#06b6d4', 'position' => 0],
-            ['title' => 'In corso', 'color' => '#f97316', 'position' => 1],
-            ['title' => 'Completato', 'color' => '#22c55e', 'position' => 2],
+            ['title' => 'Da fare', 'color' => '#06b6d4', 'position' => 0, 'project_id' => $projectId],
+            ['title' => 'In corso', 'color' => '#f97316', 'position' => 1, 'project_id' => $projectId],
+            ['title' => 'Completato', 'color' => '#22c55e', 'position' => 2, 'project_id' => $projectId],
         ] as $default) {
             $request->user()->kanbanColumns()->create($default);
         }
 
-        return $request->user()
-            ->kanbanColumns()
+        return $this->boardColumnsQuery($request, $projectId)
             ->orderBy('position')
             ->get();
     }
@@ -420,6 +523,7 @@ class KanbanController extends Controller
             $request->user()
                 ->kanbanTasks()
                 ->whereNull('kanban_column_id')
+                ->whereNull('project_id')
                 ->where('status', $status)
                 ->update(['kanban_column_id' => $columnId]);
         }
@@ -438,6 +542,7 @@ class KanbanController extends Controller
     {
         return [
             'id' => $column->id,
+            'project_id' => $column->project_id,
             'title' => $column->title,
             'color' => $column->color,
             'position' => $column->position,
@@ -447,22 +552,45 @@ class KanbanController extends Controller
 
     private function serializeTask(KanbanTask $task): array
     {
+        $timezone = $task->user?->timezone ?? config('app.timezone');
+
         return [
             'id' => $task->id,
             'task_date' => $task->task_date?->toDateString(),
             'kanban_column_id' => $task->kanban_column_id,
+            'project_id' => $task->project_id,
             'title' => $task->title,
             'description' => $task->description,
             'due_date' => $task->due_date?->toDateString(),
             'due_time' => $task->due_time,
             'reminder_option' => $task->reminder_option,
-            'custom_reminder_at' => $task->custom_reminder_at?->format('Y-m-d\TH:i'),
-            'reminder_at' => $task->reminder_at?->format('Y-m-d\TH:i'),
-            'reminder_sent_at' => $task->reminder_sent_at?->format('Y-m-d\TH:i'),
+            'custom_reminder_at' => $this->formatRawTaskDateTimeForUser($task, 'custom_reminder_at', $timezone),
+            'reminder_at' => $this->formatRawTaskDateTimeForUser($task, 'reminder_at', $timezone),
+            'reminder_sent_at' => $this->formatRawTaskDateTimeForUser($task, 'reminder_sent_at', $timezone),
             'color' => $task->color,
             'status' => $task->status,
+            'is_completed' => $task->is_completed,
+            'completed_at' => $task->completed_at?->toIso8601String(),
             'position' => $task->position,
             'labels' => $task->labels->map(fn (KanbanLabel $label): array => $this->serializeLabel($label))->values(),
+        ];
+    }
+
+    private function formatRawTaskDateTimeForUser(KanbanTask $task, string $field, string $timezone): ?string
+    {
+        $value = $task->getRawOriginal($field);
+
+        return $value ? \Carbon\CarbonImmutable::parse($value, 'UTC')->timezone($timezone)->format('Y-m-d\TH:i') : null;
+    }
+
+    private function serializeProject(Project $project): array
+    {
+        return [
+            'id' => $project->id,
+            'name' => $project->name,
+            'icon' => $project->icon,
+            'tasks_count' => $project->tasks_count ?? null,
+            'created_at' => $project->created_at?->toIso8601String(),
         ];
     }
 

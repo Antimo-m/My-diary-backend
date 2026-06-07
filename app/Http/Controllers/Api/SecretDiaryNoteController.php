@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\DiaryNote;
+use App\Models\SecretDiaryNote;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
-class DiaryNoteController extends Controller
+class SecretDiaryNoteController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
@@ -24,7 +24,7 @@ class DiaryNoteController extends Controller
         $perPage = (int) ($validated['per_page'] ?? 8);
 
         $notes = $request->user()
-            ->diaryNotes()
+            ->secretDiaryNotes()
             ->when($validated['date'] ?? null, fn ($query, $date) => $query->whereDate('entry_date', $date))
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($innerQuery) use ($search): void {
@@ -39,7 +39,7 @@ class DiaryNoteController extends Controller
 
         return response()->json([
             'data' => $notes->getCollection()
-                ->map(fn (DiaryNote $note): array => $this->serializeNote($note))
+                ->map(fn (SecretDiaryNote $note): array => $this->serializeNote($note))
                 ->values(),
             'meta' => [
                 'current_page' => $notes->currentPage(),
@@ -57,10 +57,10 @@ class DiaryNoteController extends Controller
         $validated = $this->validateNote($request, true);
         $validated['cover_image'] = $this->storeCoverImage($request);
 
-        $note = $request->user()->diaryNotes()->create($validated);
+        $note = $request->user()->secretDiaryNotes()->create($validated);
 
         return response()->json([
-            'message' => 'Pagina diario creata.',
+            'message' => 'Pagina Diario Segreto creata.',
             'data' => $this->serializeNote($note),
         ], 201);
     }
@@ -74,30 +74,30 @@ class DiaryNoteController extends Controller
 
     public function update(Request $request, string $note): JsonResponse
     {
-        $diaryNote = $this->findOwnedNote($request, $note);
+        $secretNote = $this->findOwnedNote($request, $note);
         $validated = $this->validateNote($request, false);
 
         if ($request->hasFile('cover_image')) {
-            $this->deleteCoverImage($diaryNote);
+            $this->deleteCoverImage($secretNote);
             $validated['cover_image'] = $this->storeCoverImage($request);
         }
 
-        $diaryNote->update($validated);
+        $secretNote->update($validated);
 
         return response()->json([
-            'message' => 'Pagina diario aggiornata.',
-            'data' => $this->serializeNote($diaryNote->fresh()),
+            'message' => 'Pagina Diario Segreto aggiornata.',
+            'data' => $this->serializeNote($secretNote->fresh()),
         ]);
     }
 
     public function destroy(Request $request, string $note): JsonResponse
     {
-        $diaryNote = $this->findOwnedNote($request, $note);
-        $this->deleteCoverImage($diaryNote);
-        $diaryNote->delete();
+        $secretNote = $this->findOwnedNote($request, $note);
+        $this->deleteCoverImage($secretNote);
+        $secretNote->delete();
 
         return response()->json([
-            'message' => 'Pagina diario eliminata.',
+            'message' => 'Pagina Diario Segreto eliminata.',
         ]);
     }
 
@@ -112,10 +112,10 @@ class DiaryNoteController extends Controller
         ]);
     }
 
-    private function findOwnedNote(Request $request, string $id): DiaryNote
+    private function findOwnedNote(Request $request, string $id): SecretDiaryNote
     {
         return $request->user()
-            ->diaryNotes()
+            ->secretDiaryNotes()
             ->whereKey($id)
             ->firstOrFail();
     }
@@ -123,18 +123,18 @@ class DiaryNoteController extends Controller
     private function storeCoverImage(Request $request): ?string
     {
         return $request->hasFile('cover_image')
-            ? $request->file('cover_image')->store('diary-covers', 'public')
+            ? $request->file('cover_image')->store('secret-diary-covers', 'public')
             : null;
     }
 
-    private function deleteCoverImage(DiaryNote $note): void
+    private function deleteCoverImage(SecretDiaryNote $note): void
     {
         if ($note->cover_image) {
             Storage::disk('public')->delete($note->cover_image);
         }
     }
 
-    private function serializeNote(DiaryNote $note): array
+    private function serializeNote(SecretDiaryNote $note): array
     {
         $bodyPages = $this->paginateBody($note->body ?: 'Questa pagina non contiene ancora testo.');
 
@@ -162,7 +162,7 @@ class DiaryNoteController extends Controller
             return [''];
         }
 
-        return collect(explode("\n\n", wordwrap($normalized, 620, "\n\n", true)))
+        return collect(explode("\n\n", wordwrap($normalized, 1050, "\n\n", false)))
             ->map(fn (string $page): string => trim($page))
             ->filter()
             ->values()
