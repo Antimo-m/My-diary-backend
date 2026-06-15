@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Project;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class ProjectController extends Controller
 {
@@ -15,6 +17,7 @@ class ProjectController extends Controller
             'name' => ['required', 'string', 'max:120'],
             'icon' => ['nullable', 'string', 'max:64'],
         ]);
+        $validated['slug'] = $this->uniqueSlug($request, $validated['name']);
 
         $project = $request->user()->projects()->create($validated);
 
@@ -44,33 +47,57 @@ class ProjectController extends Controller
     {
         $kanbanProject = $this->findOwnedProject($request, $project);
 
-        $request->user()
-            ->kanbanTasks()
-            ->where('project_id', $kanbanProject->id)
-            ->delete();
+        DB::transaction(function () use ($request, $kanbanProject): void {
+            $request->user()
+                ->kanbanTasks()
+                ->where('project_id', $kanbanProject->id)
+                ->delete();
 
-        $request->user()
-            ->kanbanColumns()
-            ->where('project_id', $kanbanProject->id)
-            ->delete();
+            $request->user()
+                ->kanbanColumns()
+                ->where('project_id', $kanbanProject->id)
+                ->delete();
 
-        $kanbanProject->delete();
+            $kanbanProject->delete();
+        });
 
         return response()->json(['message' => 'Progetto eliminato.']);
     }
 
-    private function findOwnedProject(Request $request, string $id): Project
+    private function findOwnedProject(Request $request, string $identifier): Project
     {
         return $request->user()
             ->projects()
-            ->whereKey($id)
+            ->where(function ($query) use ($identifier): void {
+                $query->where('slug', $identifier);
+
+                if (ctype_digit($identifier)) {
+                    $query->orWhere('id', (int) $identifier);
+                }
+            })
             ->firstOrFail();
+    }
+
+    private function uniqueSlug(Request $request, string $name): string
+    {
+        $base = Str::slug($name) ?: 'progetto';
+        $slug = $base;
+        $suffix = 2;
+
+        while ($request->user()->projects()->where('slug', $slug)->exists()) {
+            $slug = "{$base}-{$suffix}";
+            $suffix++;
+        }
+
+        return $slug;
     }
 
     private function serializeProject(Project $project): array
     {
         return [
             'id' => $project->id,
+            'slug' => $project->slug,
+            'route_identifier' => $project->slug ?: (string) $project->id,
             'name' => $project->name,
             'icon' => $project->icon,
             'tasks_count' => $project->tasks_count ?? null,

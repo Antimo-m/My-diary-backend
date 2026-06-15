@@ -8,16 +8,16 @@ use App\Models\KanbanLabel;
 use App\Models\KanbanTask;
 use App\Models\Project;
 use App\Services\TaskReminderService;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class KanbanController extends Controller
 {
-    public function __construct(private readonly TaskReminderService $taskReminderService)
-    {
-    }
+    public function __construct(private readonly TaskReminderService $taskReminderService) {}
 
     public function board(Request $request): JsonResponse
     {
@@ -31,6 +31,7 @@ class KanbanController extends Controller
         ]);
 
         $selectedDate = $validated['date'] ?? today()->toDateString();
+        $nextDate = CarbonImmutable::parse($selectedDate)->addDay()->toDateString();
         $columns = $this->ensureBoardColumns($request, null);
         $labels = $this->ensureBoardLabels($request);
         $this->attachLegacyTasksToColumns($request, $columns);
@@ -39,7 +40,8 @@ class KanbanController extends Controller
             ->kanbanTasks()
             ->with(['labels', 'user'])
             ->whereNull('project_id')
-            ->whereDate('task_date', $selectedDate)
+            ->where('task_date', '>=', $selectedDate)
+            ->where('task_date', '<', $nextDate)
             ->orderBy('position')
             ->orderBy('id')
             ->get()
@@ -65,11 +67,17 @@ class KanbanController extends Controller
         ]);
     }
 
-    public function project(Request $request, string $id): JsonResponse
+    public function project(Request $request, string $identifier): JsonResponse
     {
         $project = $request->user()
             ->projects()
-            ->whereKey($id)
+            ->where(function ($query) use ($identifier): void {
+                $query->where('slug', $identifier);
+
+                if (ctype_digit($identifier)) {
+                    $query->orWhere('id', (int) $identifier);
+                }
+            })
             ->firstOrFail();
 
         $columns = $this->ensureBoardColumns($request, $project->id);
@@ -159,14 +167,17 @@ class KanbanController extends Controller
             ], 422);
         }
 
-        $kanbanColumn->tasks()
-            ->when(
-                $kanbanColumn->project_id,
-                fn ($query, $projectId) => $query->where('project_id', $projectId),
-                fn ($query) => $query->whereNull('project_id'),
-            )
-            ->update(['kanban_column_id' => $fallbackColumn->id]);
-        $kanbanColumn->delete();
+        DB::transaction(function () use ($kanbanColumn, $fallbackColumn): void {
+            $kanbanColumn->tasks()
+                ->where('user_id', $kanbanColumn->user_id)
+                ->when(
+                    $kanbanColumn->project_id,
+                    fn ($query, $projectId) => $query->where('project_id', $projectId),
+                    fn ($query) => $query->whereNull('project_id'),
+                )
+                ->update(['kanban_column_id' => $fallbackColumn->id]);
+            $kanbanColumn->delete();
+        });
 
         return response()->json(['message' => 'Colonna eliminata.']);
     }
@@ -259,7 +270,10 @@ class KanbanController extends Controller
                 ->when(
                     $kanbanTask->project_id,
                     fn ($query, $projectId) => $query->where('project_id', $projectId),
-                    fn ($query) => $query->whereNull('project_id')->whereDate('task_date', $kanbanTask->task_date),
+                    fn ($query) => $query
+                        ->whereNull('project_id')
+                        ->where('task_date', '>=', $kanbanTask->task_date?->toDateString())
+                        ->where('task_date', '<', $kanbanTask->task_date?->addDay()->toDateString()),
                 )
                 ->update(['position' => $position]);
         }
@@ -442,7 +456,10 @@ class KanbanController extends Controller
             ->when(
                 $validated['project_id'] ?? null,
                 fn ($query, $projectId) => $query->where('project_id', $projectId),
-                fn ($query) => $query->whereNull('project_id')->whereDate('task_date', $validated['task_date']),
+                fn ($query) => $query
+                    ->whereNull('project_id')
+                    ->where('task_date', '>=', $validated['task_date'])
+                    ->where('task_date', '<', CarbonImmutable::parse($validated['task_date'])->addDay()->toDateString()),
             )
             ->max('position') + 1;
     }
@@ -580,13 +597,15 @@ class KanbanController extends Controller
     {
         $value = $task->getRawOriginal($field);
 
-        return $value ? \Carbon\CarbonImmutable::parse($value, 'UTC')->timezone($timezone)->format('Y-m-d\TH:i') : null;
+        return $value ? CarbonImmutable::parse($value, 'UTC')->timezone($timezone)->format('Y-m-d\TH:i') : null;
     }
 
     private function serializeProject(Project $project): array
     {
         return [
             'id' => $project->id,
+            'slug' => $project->slug,
+            'route_identifier' => $project->slug ?: (string) $project->id,
             'name' => $project->name,
             'icon' => $project->icon,
             'tasks_count' => $project->tasks_count ?? null,

@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Mail\SecretDiaryPasswordResetMail;
-use App\Models\User;
 use App\Support\SecretDiarySession;
+use Illuminate\Auth\Passwords\PasswordBroker;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -102,14 +102,15 @@ class SecretDiaryAuthController extends Controller
 
         RateLimiter::hit($rateLimitKey, 3600);
 
-        $user = User::where('email', $validated['email'])->first();
+        $user = $request->user();
 
-        if ($user?->secret_diary_password) {
+        if (Str::lower($validated['email']) === Str::lower($user->email) && $user->secret_diary_password) {
+            /** @var PasswordBroker $broker */
             $broker = Password::broker('secret_diary');
             $token = $broker->createToken($user);
             $frontendUrl = rtrim((string) config('app.frontend_url', config('app.url')), '/');
             $email = urlencode($user->email);
-            $url = "{$frontendUrl}?secret_reset_token={$token}&email={$email}";
+            $url = "{$frontendUrl}/#secret_reset_token={$token}&email={$email}";
 
             Mail::to($user)->send(new SecretDiaryPasswordResetMail($user, $url));
         }
@@ -127,10 +128,13 @@ class SecretDiaryAuthController extends Controller
             'token' => ['required', 'string'],
         ]);
 
-        $user = User::where('email', $validated['email'])->first();
+        $user = $request->user();
         $broker = Password::broker('secret_diary');
 
-        if (! $user || ! $broker->tokenExists($user, $validated['token'])) {
+        if (
+            Str::lower($validated['email']) !== Str::lower($user->email)
+            || ! $broker->tokenExists($user, $validated['token'])
+        ) {
             throw ValidationException::withMessages([
                 'email' => __('passwords.token'),
             ]);

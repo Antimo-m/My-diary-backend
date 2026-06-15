@@ -4,11 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Services\TaskReminderService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
@@ -20,6 +20,8 @@ class AuthController extends Controller
 {
     public function register(Request $request): JsonResponse
     {
+        $this->normalizeEmail($request);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
@@ -34,16 +36,20 @@ class AuthController extends Controller
 
         event(new Registered($user));
         Auth::login($user);
-        $request->session()->regenerate();
+        if ($request->hasSession()) {
+            $request->session()->regenerate();
+        }
 
         return response()->json([
             'message' => 'Registrazione completata.',
-            'user' => $request->user(),
+            'user' => $this->serializeUser($request->user()),
         ], 201);
     }
 
     public function login(Request $request): JsonResponse
     {
+        $this->normalizeEmail($request);
+
         $credentials = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
@@ -55,16 +61,20 @@ class AuthController extends Controller
             ]);
         }
 
-        $request->session()->regenerate();
+        if ($request->hasSession()) {
+            $request->session()->regenerate();
+        }
 
         return response()->json([
             'message' => 'Login effettuato.',
-            'user' => $request->user(),
+            'user' => $this->serializeUser($request->user()),
         ]);
     }
 
     public function forgotPassword(Request $request): JsonResponse
     {
+        $this->normalizeEmail($request);
+
         $validated = $request->validate([
             'email' => ['required', 'email'],
         ]);
@@ -84,6 +94,8 @@ class AuthController extends Controller
 
     public function resetPassword(Request $request): JsonResponse
     {
+        $this->normalizeEmail($request);
+
         $validated = $request->validate([
             'token' => ['required', 'string'],
             'email' => ['required', 'email'],
@@ -97,6 +109,9 @@ class AuthController extends Controller
                     'password' => Hash::make($password),
                     'remember_token' => Str::random(60),
                 ])->save();
+
+                $user->tokens()->delete();
+                DB::table('sessions')->where('user_id', $user->getKey())->delete();
             }
         );
 
@@ -114,7 +129,7 @@ class AuthController extends Controller
     public function user(Request $request): JsonResponse
     {
         return response()->json([
-            'user' => $request->user(),
+            'user' => $this->serializeUser($request->user()),
         ]);
     }
 
@@ -123,34 +138,59 @@ class AuthController extends Controller
         $validated = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'show_welcome_modal' => ['sometimes', 'boolean'],
-            'email_notifications_enabled' => ['sometimes', 'boolean'],
             'locale' => ['sometimes', 'required', Rule::in(['it', 'en'])],
             'timezone' => ['sometimes', 'required', 'timezone'],
-            'default_task_reminder' => [
-                'sometimes',
-                'required',
-                'string',
-                Rule::in(TaskReminderService::OPTIONS),
-            ],
         ]);
 
-        $request->user()->update($validated);
+        $user = $request->user();
+        $user->update($validated);
 
         return response()->json([
             'message' => 'Profilo aggiornato.',
-            'user' => $request->user()->fresh(),
+            'user' => $this->serializeUser($user->refresh()),
         ]);
     }
 
     public function logout(Request $request): JsonResponse
     {
+        $accessToken = $request->user()?->currentAccessToken();
+
+        if ($accessToken && method_exists($accessToken, 'delete')) {
+            $accessToken->delete();
+        }
+
         Auth::guard('web')->logout();
 
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
 
         return response()->json([
             'message' => 'Logout effettuato.',
+        ]);
+    }
+
+    private function normalizeEmail(Request $request): void
+    {
+        if ($request->has('email')) {
+            $request->merge([
+                'email' => Str::lower(trim((string) $request->input('email'))),
+            ]);
+        }
+    }
+
+    private function serializeUser(User $user): array
+    {
+        return $user->only([
+            'id',
+            'name',
+            'email',
+            'show_welcome_modal',
+            'email_notifications_enabled',
+            'default_task_reminder',
+            'locale',
+            'timezone',
         ]);
     }
 }

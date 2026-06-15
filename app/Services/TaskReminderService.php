@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Mail\TaskReminderMail;
+use App\Jobs\SendTaskReminder;
 use App\Models\KanbanTask;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\App;
@@ -94,14 +95,18 @@ class TaskReminderService
             ->whereNull('reminder_sent_at')
             ->whereNotNull('reminder_at')
             ->where('reminder_at', '<=', now('UTC'))
-            ->whereHas('user', fn ($query) => $query->where('email_notifications_enabled', true))
             ->limit(100)
             ->get();
 
         foreach ($tasks as $task) {
             try {
-                $this->sendReminder($task, $sendNow);
-                $task->forceFill(['reminder_sent_at' => now('UTC')])->save();
+                if ($sendNow) {
+                    $this->sendReminder($task);
+                    $task->forceFill(['reminder_sent_at' => now('UTC')])->save();
+                } else {
+                    SendTaskReminder::dispatch($task->id);
+                }
+
                 $sent++;
             } catch (\Throwable $exception) {
                 Log::error('Task reminder delivery skipped after failure', [
@@ -116,12 +121,12 @@ class TaskReminderService
         return $sent;
     }
 
-    public function sendReminder(KanbanTask $task, bool $sendNow = false): void
+    public function sendReminder(KanbanTask $task): void
     {
         $task->loadMissing(['column', 'user']);
         $locale = in_array($task->user->locale, ['it', 'en'], true) ? $task->user->locale : config('app.locale');
 
-        Log::info('Task reminder email queued for delivery', [
+        Log::info('Task reminder email delivery started', [
             'task_id' => $task->id,
             'user_id' => $task->user_id,
             'mailer' => config('mail.default'),
@@ -135,12 +140,6 @@ class TaskReminderService
         $pendingMail = Mail::to($task->user->email)->locale($locale);
         $mail = new TaskReminderMail($task);
 
-        if ($sendNow) {
-            $pendingMail->send($mail);
-
-            return;
-        }
-
-        $pendingMail->queue($mail);
+        $pendingMail->send($mail);
     }
 }

@@ -13,6 +13,7 @@ class DiaryNote extends Model
     protected $fillable = [
         'entry_date',
         'title',
+        'slug',
         'body',
         'cover_image',
         'photo_dedication',
@@ -33,7 +34,7 @@ class DiaryNote extends Model
     public function coverImageUrl(): ?string
     {
         return $this->cover_image
-            ? '/storage/'.ltrim($this->cover_image, '/')
+            ? '/api/diary-notes/'.rawurlencode($this->slug ?: (string) $this->getKey()).'/cover'
             : null;
     }
 }

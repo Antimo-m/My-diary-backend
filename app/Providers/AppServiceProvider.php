@@ -24,6 +24,26 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        RateLimiter::for('auth-login', function (Request $request): Limit {
+            $email = Str::lower((string) $request->input('email', 'guest'));
+
+            return Limit::perMinute(5)->by($request->ip().'|'.$email);
+        });
+
+        RateLimiter::for('registration', fn (Request $request): Limit => Limit::perHour(5)->by($request->ip()));
+
+        RateLimiter::for('api-read', function (Request $request): Limit {
+            return Limit::perMinute(120)->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip()));
+        });
+
+        RateLimiter::for('api-write', function (Request $request): Limit {
+            return Limit::perMinute(45)->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip()));
+        });
+
+        RateLimiter::for('stats', function (Request $request): Limit {
+            return Limit::perMinute(30)->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip()));
+        });
+
         RateLimiter::for('password-reset', function (Request $request): Limit {
             $email = Str::lower((string) $request->input('email', 'guest'));
 
@@ -37,10 +57,10 @@ class AppServiceProvider extends ServiceProvider
         });
 
         ResetPassword::createUrlUsing(function (object $notifiable, string $token): string {
-            $frontendUrl = rtrim((string) env('FRONTEND_URL', config('app.url')), '/');
+            $frontendUrl = rtrim((string) config('app.frontend_url', config('app.url')), '/');
             $email = urlencode($notifiable->getEmailForPasswordReset());
 
-            return "{$frontendUrl}?reset_token={$token}&email={$email}";
+            return "{$frontendUrl}/#reset_token={$token}&email={$email}";
         });
     }
 }

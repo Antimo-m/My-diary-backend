@@ -28,6 +28,7 @@ return [
     'required_if' => 'Il campo :attribute e obbligatorio.',
     'string' => 'Il campo :attribute deve essere testo.',
     'unique' => 'Questo :attribute e gia stato utilizzato.',
+    'uploaded' => 'Non e stato possibile caricare :attribute. Il file potrebbe superare il limite consentito dal server.',
 
     'password' => [
         'letters' => 'Il campo :attribute deve contenere almeno una lettera.',

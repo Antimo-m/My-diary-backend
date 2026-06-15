@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Cache;
 class SecretDiarySession
 {
     public const SESSION_KEY = 'secret_diary_unlocked_at';
+
     public const TIMEOUT_MINUTES = 5;
 
     public static function isUnlocked(Request $request): bool
@@ -18,7 +19,8 @@ class SecretDiarySession
         }
 
         if (! $request->hasSession()) {
-            $isUnlocked = Cache::has(self::cacheKey($request->user()));
+            $cacheKey = self::cacheKey($request);
+            $isUnlocked = $cacheKey !== null && Cache::has($cacheKey);
 
             if ($isUnlocked) {
                 self::unlock($request);
@@ -43,7 +45,11 @@ class SecretDiarySession
     public static function unlock(Request $request): void
     {
         if (! $request->hasSession()) {
-            Cache::put(self::cacheKey($request->user()), true, now()->addMinutes(self::TIMEOUT_MINUTES));
+            $cacheKey = self::cacheKey($request);
+
+            if ($cacheKey !== null) {
+                Cache::put($cacheKey, true, now()->addMinutes(self::TIMEOUT_MINUTES));
+            }
 
             return;
         }
@@ -54,7 +60,11 @@ class SecretDiarySession
     public static function lock(Request $request): void
     {
         if (! $request->hasSession()) {
-            Cache::forget(self::cacheKey($request->user()));
+            $cacheKey = self::cacheKey($request);
+
+            if ($cacheKey !== null) {
+                Cache::forget($cacheKey);
+            }
 
             return;
         }
@@ -71,8 +81,15 @@ class SecretDiarySession
         ];
     }
 
-    private static function cacheKey(?User $user): string
+    private static function cacheKey(Request $request): ?string
     {
-        return 'secret_diary_unlocked_user_'.($user?->getKey() ?? 'guest');
+        $user = $request->user();
+        $token = $request->bearerToken();
+
+        if (! $user || ! $token) {
+            return null;
+        }
+
+        return 'secret_diary_unlocked_token_'.$user->getKey().'_'.hash('sha256', $token);
     }
 }

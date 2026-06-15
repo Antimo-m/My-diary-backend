@@ -8,8 +8,6 @@
     $taskColor = $task->color ?: ($task->column?->color ?: '#00a7c8');
     $taskColor = preg_match('/^#(?:[A-Fa-f0-9]{3}){1,2}$/', $taskColor) ? $taskColor : '#00a7c8';
     $frontendUrl = rtrim((string) config('app.frontend_url', env('FRONTEND_URL', config('app.url'))), '/');
-    $userTimezone = $task->user->timezone ?: config('app.timezone');
-    $reminderAt = $task->reminder_at?->copy()->timezone($userTimezone);
 @endphp
 <body style="margin:0; padding:0; background:#fff3df; color:#172026; font-family:'Avenir Next','Nunito Sans',Arial,sans-serif;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; background:#fff3df; padding:28px 0;">
@@ -55,16 +53,16 @@
                                         <td style="padding:12px 14px; background:#f7f8fb; border-radius:0 14px 14px 0; color:#172026; font-size:15px;">{{ $task->column->title }}</td>
                                     </tr>
                                 @endif
-                                @if ($task->due_date)
+                                @if ($dueAtLabel)
                                     <tr>
                                         <td width="120" style="padding:12px 14px; background:#d8f8ff; border-radius:14px 0 0 14px; color:#056274; font-size:13px; font-weight:700;">Scadenza</td>
-                                        <td style="padding:12px 14px; background:#d8f8ff; border-radius:0 14px 14px 0; color:#056274; font-size:15px; font-weight:700;">{{ $task->due_date->format('d/m/Y') }}{{ $task->due_time ? ' alle '.$task->due_time : '' }}</td>
+                                        <td style="padding:12px 14px; background:#d8f8ff; border-radius:0 14px 14px 0; color:#056274; font-size:15px; font-weight:700;">{{ $dueAtLabel }}</td>
                                     </tr>
                                 @endif
-                                @if ($reminderAt)
+                                @if ($reminderAtLabel)
                                     <tr>
                                         <td width="120" style="padding:12px 14px; background:#ffe1d8; border-radius:14px 0 0 14px; color:#9d3b25; font-size:13px; font-weight:700;">Promemoria</td>
-                                        <td style="padding:12px 14px; background:#ffe1d8; border-radius:0 14px 14px 0; color:#9d3b25; font-size:15px; font-weight:700;">{{ $reminderAt->format('d/m/Y H:i') }}</td>
+                                        <td style="padding:12px 14px; background:#ffe1d8; border-radius:0 14px 14px 0; color:#9d3b25; font-size:15px; font-weight:700;">{{ $reminderAtLabel }}</td>
                                     </tr>
                                 @endif
                             </table>

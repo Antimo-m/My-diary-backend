@@ -1,9 +1,4 @@
 Ciao {{ $task->user->name }},
-@php
-    $userTimezone = $task->user->timezone ?: config('app.timezone');
-    $reminderAt = $task->reminder_at?->copy()->timezone($userTimezone);
-@endphp
-
 hai un promemoria My Diary per questa attività.
 
 Attività: {{ $task->title }}
@@ -13,11 +8,11 @@ Descrizione: {{ $task->description }}
 @if ($task->column)
 Colonna: {{ $task->column->title }}
 @endif
-@if ($task->due_date)
-Scadenza: {{ $task->due_date->format('d/m/Y') }}{{ $task->due_time ? ' alle '.$task->due_time : '' }}
+@if ($dueAtLabel)
+Scadenza: {{ $dueAtLabel }}
 @endif
-@if ($reminderAt)
-Promemoria: {{ $reminderAt->format('d/m/Y H:i') }}
+@if ($reminderAtLabel)
+Promemoria: {{ $reminderAtLabel }}
 @endif
 
 My Diary

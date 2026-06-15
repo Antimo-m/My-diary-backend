@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\DiaryNote;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -25,7 +26,11 @@ class DiaryNoteController extends Controller
 
         $notes = $request->user()
             ->diaryNotes()
-            ->when($validated['date'] ?? null, fn ($query, $date) => $query->whereDate('entry_date', $date))
+            ->when($validated['date'] ?? null, function ($query, $date): void {
+                $query
+                    ->where('entry_date', '>=', $date)
+                    ->where('entry_date', '<', CarbonImmutable::parse($date)->addDay()->toDateString());
+            })
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($innerQuery) use ($search): void {
                     $innerQuery
@@ -55,6 +60,7 @@ class DiaryNoteController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $this->validateNote($request, true);
+        $validated['slug'] = $this->uniqueSlug($request, $validated['title']);
         $validated['cover_image'] = $this->storeCoverImage($request);
 
         $note = $request->user()->diaryNotes()->create($validated);
@@ -70,6 +76,28 @@ class DiaryNoteController extends Controller
         return response()->json([
             'data' => $this->serializeNote($this->findOwnedNote($request, $note)),
         ]);
+    }
+
+    public function cover(Request $request, string $note)
+    {
+        $diaryNote = $this->findOwnedNote($request, $note);
+
+        abort_unless($diaryNote->cover_image, 404);
+
+        $disk = Storage::disk('local');
+
+        abort_unless($disk->exists($diaryNote->cover_image), 404);
+
+        $response = response()->file($disk->path($diaryNote->cover_image), [
+            'Pragma' => 'no-cache',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+
+        $response->setPrivate();
+        $response->setMaxAge(0);
+        $response->headers->addCacheControlDirective('no-store');
+
+        return $response;
     }
 
     public function update(Request $request, string $note): JsonResponse
@@ -107,30 +135,50 @@ class DiaryNoteController extends Controller
             'entry_date' => [$creating ? 'required' : 'sometimes', 'date'],
             'title' => [$creating ? 'required' : 'sometimes', 'string', 'max:120'],
             'body' => [$creating ? 'required' : 'sometimes', 'string', 'min:3'],
-            'cover_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+            'cover_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096', 'dimensions:max_width=6000,max_height=6000'],
             'photo_dedication' => ['nullable', 'string', 'max:180'],
         ]);
     }
 
-    private function findOwnedNote(Request $request, string $id): DiaryNote
+    private function findOwnedNote(Request $request, string $identifier): DiaryNote
     {
         return $request->user()
             ->diaryNotes()
-            ->whereKey($id)
+            ->where(function ($query) use ($identifier): void {
+                $query->where('slug', $identifier);
+
+                if (ctype_digit($identifier)) {
+                    $query->orWhere('id', (int) $identifier);
+                }
+            })
             ->firstOrFail();
+    }
+
+    private function uniqueSlug(Request $request, string $title): string
+    {
+        $base = Str::slug($title) ?: 'pagina-diario';
+        $slug = $base;
+        $suffix = 2;
+
+        while ($request->user()->diaryNotes()->where('slug', $slug)->exists()) {
+            $slug = "{$base}-{$suffix}";
+            $suffix++;
+        }
+
+        return $slug;
     }
 
     private function storeCoverImage(Request $request): ?string
     {
         return $request->hasFile('cover_image')
-            ? $request->file('cover_image')->store('diary-covers', 'public')
+            ? $request->file('cover_image')->store('diary-covers', 'local')
             : null;
     }
 
     private function deleteCoverImage(DiaryNote $note): void
     {
         if ($note->cover_image) {
-            Storage::disk('public')->delete($note->cover_image);
+            Storage::disk('local')->delete($note->cover_image);
         }
     }
 
@@ -140,6 +188,8 @@ class DiaryNoteController extends Controller
 
         return [
             'id' => $note->id,
+            'slug' => $note->slug,
+            'route_identifier' => $note->slug ?: (string) $note->id,
             'entry_date' => $note->entry_date?->toDateString(),
             'formatted_date' => $note->entry_date?->translatedFormat('d F Y'),
             'title' => $note->title,

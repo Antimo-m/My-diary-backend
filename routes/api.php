@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ActivityController;
+use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DiaryNoteController;
 use App\Http\Controllers\Api\HomeController;
 use App\Http\Controllers\Api\KanbanController;
@@ -11,20 +11,24 @@ use App\Http\Controllers\Api\SecretDiaryNoteController;
 use App\Http\Controllers\Api\StatsController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/home', [HomeController::class, 'show']);
+Route::get('/home', [HomeController::class, 'show'])->middleware('throttle:api-read');
 
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:registration');
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth-login');
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:password-reset');
-Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:password-reset');
 
 Route::middleware('auth:sanctum')->group(function (): void {
-    Route::get('/user', [AuthController::class, 'user']);
-    Route::put('/user', [AuthController::class, 'updateUser']);
-    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/user', [AuthController::class, 'user'])->middleware('throttle:api-read');
+    Route::put('/user', [AuthController::class, 'updateUser'])->middleware('throttle:api-write');
+    Route::post('/logout', [AuthController::class, 'logout'])->middleware('throttle:api-write');
 
-    Route::apiResource('diary-notes', DiaryNoteController::class)
-        ->parameters(['diary-notes' => 'note']);
+    Route::get('/diary-notes', [DiaryNoteController::class, 'index'])->middleware('throttle:api-read');
+    Route::get('/diary-notes/{note}/cover', [DiaryNoteController::class, 'cover'])->middleware('throttle:api-read');
+    Route::get('/diary-notes/{note}', [DiaryNoteController::class, 'show'])->middleware('throttle:api-read');
+    Route::post('/diary-notes', [DiaryNoteController::class, 'store'])->middleware('throttle:api-write');
+    Route::match(['put', 'patch'], '/diary-notes/{note}', [DiaryNoteController::class, 'update'])->middleware('throttle:api-write');
+    Route::delete('/diary-notes/{note}', [DiaryNoteController::class, 'destroy'])->middleware('throttle:api-write');
 
     Route::get('/secret-diary/status', [SecretDiaryAuthController::class, 'status']);
     Route::post('/secret-diary/setup', [SecretDiaryAuthController::class, 'setup'])->middleware('throttle:5,1');
@@ -32,31 +36,36 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/secret-diary/lock', [SecretDiaryAuthController::class, 'lock']);
     Route::post('/secret-diary/forgot-password', [SecretDiaryAuthController::class, 'forgotPassword'])->middleware('throttle:password-reset');
     Route::post('/secret-diary/reset-password', [SecretDiaryAuthController::class, 'resetPassword'])->middleware('throttle:5,1');
-    Route::apiResource('secret-diary/notes', SecretDiaryNoteController::class)
-        ->middleware('secret-diary.unlocked')
-        ->parameters(['notes' => 'note']);
+    Route::middleware('secret-diary.unlocked')->group(function (): void {
+        Route::get('/secret-diary/notes', [SecretDiaryNoteController::class, 'index'])->middleware('throttle:api-read');
+        Route::get('/secret-diary/notes/{note}/cover', [SecretDiaryNoteController::class, 'cover'])->middleware('throttle:api-read');
+        Route::get('/secret-diary/notes/{note}', [SecretDiaryNoteController::class, 'show'])->middleware('throttle:api-read');
+        Route::post('/secret-diary/notes', [SecretDiaryNoteController::class, 'store'])->middleware('throttle:api-write');
+        Route::match(['put', 'patch'], '/secret-diary/notes/{note}', [SecretDiaryNoteController::class, 'update'])->middleware('throttle:api-write');
+        Route::delete('/secret-diary/notes/{note}', [SecretDiaryNoteController::class, 'destroy'])->middleware('throttle:api-write');
+    });
 
-    Route::get('/kanban/board', [KanbanController::class, 'board']);
-    Route::get('/kanban/daily', [KanbanController::class, 'daily']);
-    Route::get('/kanban/projects', [KanbanController::class, 'projects']);
-    Route::get('/kanban/project/{id}', [KanbanController::class, 'project']);
-    Route::post('/projects', [ProjectController::class, 'store']);
-    Route::put('/projects/{project}', [ProjectController::class, 'update']);
-    Route::delete('/projects/{project}', [ProjectController::class, 'destroy']);
-    Route::post('/activities/{id}/toggle-complete', [ActivityController::class, 'toggleComplete']);
-    Route::get('/stats/profile', [StatsController::class, 'profile']);
+    Route::get('/kanban/board', [KanbanController::class, 'board'])->middleware('throttle:api-read');
+    Route::get('/kanban/daily', [KanbanController::class, 'daily'])->middleware('throttle:api-read');
+    Route::get('/kanban/projects', [KanbanController::class, 'projects'])->middleware('throttle:api-read');
+    Route::get('/kanban/project/{identifier}', [KanbanController::class, 'project'])->middleware('throttle:api-read');
+    Route::post('/projects', [ProjectController::class, 'store'])->middleware('throttle:api-write');
+    Route::put('/projects/{project}', [ProjectController::class, 'update'])->middleware('throttle:api-write');
+    Route::delete('/projects/{project}', [ProjectController::class, 'destroy'])->middleware('throttle:api-write');
+    Route::post('/activities/{id}/toggle-complete', [ActivityController::class, 'toggleComplete'])->middleware('throttle:api-write');
+    Route::get('/stats/profile', [StatsController::class, 'profile'])->middleware('throttle:stats');
 
-    Route::post('/kanban/columns', [KanbanController::class, 'storeColumn']);
-    Route::put('/kanban/columns/{column}', [KanbanController::class, 'updateColumn']);
-    Route::patch('/kanban/columns/order', [KanbanController::class, 'moveColumns']);
-    Route::delete('/kanban/columns/{column}', [KanbanController::class, 'destroyColumn']);
+    Route::post('/kanban/columns', [KanbanController::class, 'storeColumn'])->middleware('throttle:api-write');
+    Route::put('/kanban/columns/{column}', [KanbanController::class, 'updateColumn'])->middleware('throttle:api-write');
+    Route::patch('/kanban/columns/order', [KanbanController::class, 'moveColumns'])->middleware('throttle:api-write');
+    Route::delete('/kanban/columns/{column}', [KanbanController::class, 'destroyColumn'])->middleware('throttle:api-write');
 
-    Route::post('/kanban/tasks', [KanbanController::class, 'storeTask']);
-    Route::put('/kanban/tasks/{task}', [KanbanController::class, 'updateTask']);
-    Route::patch('/kanban/tasks/{task}/move', [KanbanController::class, 'moveTask']);
-    Route::delete('/kanban/tasks/{task}', [KanbanController::class, 'destroyTask']);
+    Route::post('/kanban/tasks', [KanbanController::class, 'storeTask'])->middleware('throttle:api-write');
+    Route::put('/kanban/tasks/{task}', [KanbanController::class, 'updateTask'])->middleware('throttle:api-write');
+    Route::patch('/kanban/tasks/{task}/move', [KanbanController::class, 'moveTask'])->middleware('throttle:api-write');
+    Route::delete('/kanban/tasks/{task}', [KanbanController::class, 'destroyTask'])->middleware('throttle:api-write');
 
-    Route::post('/kanban/labels', [KanbanController::class, 'storeLabel']);
-    Route::put('/kanban/labels/{label}', [KanbanController::class, 'updateLabel']);
-    Route::delete('/kanban/labels/{label}', [KanbanController::class, 'destroyLabel']);
+    Route::post('/kanban/labels', [KanbanController::class, 'storeLabel'])->middleware('throttle:api-write');
+    Route::put('/kanban/labels/{label}', [KanbanController::class, 'updateLabel'])->middleware('throttle:api-write');
+    Route::delete('/kanban/labels/{label}', [KanbanController::class, 'destroyLabel'])->middleware('throttle:api-write');
 });

@@ -6,8 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\KanbanTask;
 use App\Models\Project;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class StatsController extends Controller
@@ -17,7 +20,13 @@ class StatsController extends Controller
         $validated = $request->validate([
             'period' => ['nullable', Rule::in(['week', 'month', 'year'])],
             'board' => ['nullable', Rule::in(['all', 'daily', 'project'])],
-            'project_id' => ['nullable', 'integer'],
+            'project_id' => [
+                'nullable',
+                'integer',
+                'min:1',
+                'required_if:board,project',
+                'prohibited_unless:board,project',
+            ],
         ]);
 
         $user = $request->user();
@@ -26,22 +35,22 @@ class StatsController extends Controller
         [$startsAt, $endsAt] = $this->periodBounds($period);
 
         $taskQuery = $this->kanbanTaskScope($request, $board, $project);
-        $taskCounts = (clone $taskQuery)
+        $taskSummary = (clone $taskQuery)
             ->whereBetween('created_at', [$startsAt, $endsAt])
             ->selectRaw('count(*) as total')
             ->selectRaw('sum(case when is_completed = 1 then 1 else 0 end) as completed')
+            ->selectRaw('sum(case when status = ? then 1 else 0 end) as todo', [KanbanTask::STATUS_TODO])
+            ->selectRaw('sum(case when status = ? then 1 else 0 end) as doing', [KanbanTask::STATUS_DOING])
+            ->selectRaw('sum(case when status = ? then 1 else 0 end) as done', [KanbanTask::STATUS_DONE])
             ->first();
 
-        $totalTasks = (int) ($taskCounts?->total ?? 0);
-        $completedTasks = (int) ($taskCounts?->completed ?? 0);
+        $totalTasks = (int) ($taskSummary?->total ?? 0);
+        $completedTasks = (int) ($taskSummary?->completed ?? 0);
         $completionRate = $totalTasks > 0 ? round(($completedTasks / $totalTasks) * 100, 2) : 0.0;
 
-        $diaryNotes = $user->diaryNotes()
-            ->whereBetween('created_at', [$startsAt, $endsAt])
-            ->count();
-        $secretDiaryNotes = $user->secretDiaryNotes()
-            ->whereBetween('created_at', [$startsAt, $endsAt])
-            ->count();
+        $diaryTrend = $this->diaryTrend($user->getKey(), $startsAt, $endsAt);
+        $diaryNotes = $diaryTrend->sum('public');
+        $secretDiaryNotes = $diaryTrend->sum('secret');
         $diaryInteractions = $diaryNotes + $secretDiaryNotes;
         $kanbanMessageKey = match (true) {
             $completionRate < 30 => 'stats.kanban.low',
@@ -54,26 +63,18 @@ class StatsController extends Controller
             default => 'stats.diary.stable',
         };
 
-        $statusBreakdown = (clone $taskQuery)
-            ->whereBetween('created_at', [$startsAt, $endsAt])
-            ->selectRaw('status, count(*) as total')
-            ->groupBy('status')
-            ->pluck('total', 'status')
-            ->map(fn ($count): int => (int) $count);
-
         $kanbanTrend = (clone $taskQuery)
-            ->selectRaw('date(task_date) as date, count(*) as total, sum(case when is_completed = 1 then 1 else 0 end) as completed')
+            ->selectRaw('task_date as date, count(*) as total, sum(case when is_completed = 1 then 1 else 0 end) as completed')
             ->whereBetween('created_at', [$startsAt, $endsAt])
-            ->groupBy('date')
-            ->orderBy('date')
+            ->groupBy('task_date')
+            ->orderBy('task_date')
+            ->toBase()
             ->get()
-            ->map(fn (KanbanTask $row): array => [
+            ->map(fn (object $row): array => [
                 'date' => $row->date,
                 'total' => (int) $row->total,
                 'completed' => (int) $row->completed,
             ]);
-
-        $diaryTrend = $this->diaryTrend($request, $startsAt, $endsAt);
 
         return response()->json([
             'period' => $period,
@@ -96,9 +97,9 @@ class StatsController extends Controller
                 'message_key' => $kanbanMessageKey,
                 'message' => __($kanbanMessageKey),
                 'status_breakdown' => [
-                    KanbanTask::STATUS_TODO => $statusBreakdown->get(KanbanTask::STATUS_TODO, 0),
-                    KanbanTask::STATUS_DOING => $statusBreakdown->get(KanbanTask::STATUS_DOING, 0),
-                    KanbanTask::STATUS_DONE => $statusBreakdown->get(KanbanTask::STATUS_DONE, 0),
+                    KanbanTask::STATUS_TODO => (int) ($taskSummary?->todo ?? 0),
+                    KanbanTask::STATUS_DOING => (int) ($taskSummary?->doing ?? 0),
+                    KanbanTask::STATUS_DONE => (int) ($taskSummary?->done ?? 0),
                 ],
                 'trend' => $kanbanTrend,
             ],
@@ -122,13 +123,14 @@ class StatsController extends Controller
 
         $project = $request->user()
             ->projects()
+            ->select(['id', 'user_id', 'name', 'icon'])
             ->whereKey($validated['project_id'])
             ->firstOrFail();
 
         return ['project', $project];
     }
 
-    private function kanbanTaskScope(Request $request, string $board, ?Project $project)
+    private function kanbanTaskScope(Request $request, string $board, ?Project $project): HasMany
     {
         return $request->user()
             ->kanbanTasks()
@@ -159,34 +161,31 @@ class StatsController extends Controller
         };
     }
 
-    private function diaryTrend(Request $request, CarbonImmutable $startsAt, CarbonImmutable $endsAt)
+    private function diaryTrend(int $userId, CarbonImmutable $startsAt, CarbonImmutable $endsAt): Collection
     {
-        $publicNotes = $request->user()
-            ->diaryNotes()
-            ->selectRaw('date(entry_date) as date, count(*) as total')
+        $publicNotes = DB::table('diary_notes')
+            ->selectRaw('entry_date as date, count(*) as public, 0 as secret')
+            ->where('user_id', $userId)
             ->whereBetween('created_at', [$startsAt, $endsAt])
-            ->groupBy('date')
-            ->get()
-            ->keyBy('date');
+            ->groupBy('entry_date');
 
-        $secretNotes = $request->user()
-            ->secretDiaryNotes()
-            ->selectRaw('date(entry_date) as date, count(*) as total')
+        $secretNotes = DB::table('secret_diary_notes')
+            ->selectRaw('entry_date as date, 0 as public, count(*) as secret')
+            ->where('user_id', $userId)
             ->whereBetween('created_at', [$startsAt, $endsAt])
-            ->groupBy('date')
-            ->get()
-            ->keyBy('date');
+            ->groupBy('entry_date');
 
-        return collect($publicNotes->keys())
-            ->merge($secretNotes->keys())
-            ->unique()
-            ->sort()
-            ->values()
-            ->map(fn (string $date): array => [
-                'date' => $date,
-                'public' => (int) ($publicNotes->get($date)?->total ?? 0),
-                'secret' => (int) ($secretNotes->get($date)?->total ?? 0),
-                'total' => (int) ($publicNotes->get($date)?->total ?? 0) + (int) ($secretNotes->get($date)?->total ?? 0),
+        return DB::query()
+            ->fromSub($publicNotes->unionAll($secretNotes), 'diary_activity')
+            ->selectRaw('date, sum(public) as public, sum(secret) as secret')
+            ->groupBy('date')
+            ->orderBy('date')
+            ->get()
+            ->map(fn (object $row): array => [
+                'date' => $row->date,
+                'public' => (int) $row->public,
+                'secret' => (int) $row->secret,
+                'total' => (int) $row->public + (int) $row->secret,
             ]);
     }
 }
