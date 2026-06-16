@@ -264,7 +264,7 @@ class DiaryAndKanbanTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_deleting_a_kanban_column_moves_tasks_to_first_available_owned_column(): void
+    public function test_deleting_a_kanban_column_deletes_its_tasks(): void
     {
         $user = User::factory()->create();
 
@@ -273,12 +273,11 @@ class DiaryAndKanbanTest extends TestCase
             ->assertOk();
 
         $deletedColumnId = $board->json('columns.0.id');
-        $fallbackColumnId = $board->json('columns.1.id');
 
         $taskResponse = $this->actingAs($user)->postJson('/api/kanban/tasks', [
             'task_date' => '2026-06-01',
             'kanban_column_id' => $deletedColumnId,
-            'title' => 'Task da salvare',
+            'title' => 'Task da eliminare',
             'status' => KanbanTask::STATUS_TODO,
         ])->assertCreated();
 
@@ -287,10 +286,8 @@ class DiaryAndKanbanTest extends TestCase
             ->assertOk();
 
         $this->assertDatabaseMissing('kanban_columns', ['id' => $deletedColumnId]);
-        $this->assertDatabaseHas('kanban_tasks', [
+        $this->assertDatabaseMissing('kanban_tasks', [
             'id' => $taskResponse->json('data.id'),
-            'user_id' => $user->id,
-            'kanban_column_id' => $fallbackColumnId,
         ]);
     }
 

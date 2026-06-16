@@ -156,18 +156,8 @@ class KanbanController extends Controller
     public function destroyColumn(Request $request, string $column): JsonResponse
     {
         $kanbanColumn = $this->findOwnedColumn($request, $column);
-        $fallbackColumn = $this->boardColumnsQuery($request, $kanbanColumn->project_id)
-            ->where('id', '!=', $kanbanColumn->id)
-            ->orderBy('position')
-            ->first();
 
-        if (! $fallbackColumn) {
-            return response()->json([
-                'message' => 'Non puoi eliminare l ultima colonna della board.',
-            ], 422);
-        }
-
-        DB::transaction(function () use ($kanbanColumn, $fallbackColumn): void {
+        DB::transaction(function () use ($kanbanColumn): void {
             $kanbanColumn->tasks()
                 ->where('user_id', $kanbanColumn->user_id)
                 ->when(
@@ -175,7 +165,8 @@ class KanbanController extends Controller
                     fn ($query, $projectId) => $query->where('project_id', $projectId),
                     fn ($query) => $query->whereNull('project_id'),
                 )
-                ->update(['kanban_column_id' => $fallbackColumn->id]);
+                ->delete();
+
             $kanbanColumn->delete();
         });
 
