@@ -1,6 +1,6 @@
 # My Diary - Process Map
 
-Schema sintetico dei processi principali dell'app, utile per presentazione tecnica o colloquio.
+Schema sintetico dei processi principali dell'app
 
 ```mermaid
 flowchart TD
