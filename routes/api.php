@@ -21,6 +21,7 @@ Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middle
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('/user', [AuthController::class, 'user'])->middleware('throttle:api-read');
     Route::put('/user', [AuthController::class, 'updateUser'])->middleware('throttle:api-write');
+    Route::delete('/user', [AuthController::class, 'destroyAccount'])->middleware('throttle:5,1');
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('throttle:api-write');
 
     Route::get('/diary-notes', [DiaryNoteController::class, 'index'])->middleware('throttle:api-read');

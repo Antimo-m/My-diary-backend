@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules;
@@ -148,6 +149,46 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Profilo aggiornato.',
             'user' => $this->serializeUser($user->refresh()),
+        ]);
+    }
+
+    public function destroyAccount(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'password' => ['required', 'string'],
+        ]);
+
+        $user = $request->user();
+
+        if (! Hash::check($validated['password'], $user->password)) {
+            throw ValidationException::withMessages([
+                'password' => __('auth.password'),
+            ]);
+        }
+
+        Auth::guard('web')->logout();
+
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
+
+        DB::transaction(function () use ($user): void {
+            $user->diaryNotes()->pluck('cover_image')->filter()->each(
+                fn (string $coverImage) => Storage::disk('local')->delete($coverImage)
+            );
+            $user->secretDiaryNotes()->pluck('cover_image')->filter()->each(
+                fn (string $coverImage) => Storage::disk('local')->delete($coverImage)
+            );
+
+            $user->tokens()->delete();
+            DB::table('sessions')->where('user_id', $user->getKey())->delete();
+
+            $user->delete();
+        });
+
+        return response()->json([
+            'message' => 'Account eliminato.',
         ]);
     }
 
