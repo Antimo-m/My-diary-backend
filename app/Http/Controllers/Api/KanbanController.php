@@ -517,6 +517,16 @@ class KanbanController extends Controller
 
     private function attachLegacyTasksToColumns(Request $request, $columns): void
     {
+        $hasOrphanTasks = $request->user()
+            ->kanbanTasks()
+            ->whereNull('kanban_column_id')
+            ->whereNull('project_id')
+            ->exists();
+
+        if (! $hasOrphanTasks) {
+            return;
+        }
+
         $statusMap = [
             KanbanTask::STATUS_TODO => $columns->get(0)?->id,
             KanbanTask::STATUS_DOING => $columns->get(1)?->id,
