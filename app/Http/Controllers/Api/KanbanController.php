@@ -109,7 +109,7 @@ class KanbanController extends Controller
 
         $validated['project_id'] = $this->resolveProjectId($request, $validated);
         $validated['position'] = (int) $this->boardColumnsQuery($request, $validated['project_id'])->max('position') + 1;
-        $validated['color'] = $validated['color'] ?? '#06b6d4';
+        $validated['color'] = $validated['color'] ?? '#1DB874';
 
         $column = $request->user()->kanbanColumns()->create($validated);
 
