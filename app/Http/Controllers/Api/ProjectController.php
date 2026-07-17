@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\ProjectResource;
 use App\Models\Project;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,7 +24,7 @@ class ProjectController extends Controller
 
         return response()->json([
             'message' => 'Progetto creato.',
-            'data' => $this->serializeProject($project),
+            'data' => ProjectResource::make($project),
         ], 201);
     }
 
@@ -39,7 +40,7 @@ class ProjectController extends Controller
 
         return response()->json([
             'message' => 'Progetto aggiornato.',
-            'data' => $this->serializeProject($kanbanProject->fresh()->loadCount('tasks')),
+            'data' => ProjectResource::make($kanbanProject->fresh()->loadCount('tasks')),
         ]);
     }
 
@@ -90,18 +91,5 @@ class ProjectController extends Controller
         }
 
         return $slug;
-    }
-
-    private function serializeProject(Project $project): array
-    {
-        return [
-            'id' => $project->id,
-            'slug' => $project->slug,
-            'route_identifier' => $project->slug ?: (string) $project->id,
-            'name' => $project->name,
-            'icon' => $project->icon,
-            'tasks_count' => $project->tasks_count ?? null,
-            'created_at' => $project->created_at?->toIso8601String(),
-        ];
     }
 }

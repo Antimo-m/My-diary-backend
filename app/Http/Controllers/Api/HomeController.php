@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\ProjectResource;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,19 +17,13 @@ class HomeController extends Controller
         $tomorrow = $today->addDay();
 
         $recentProjects = $user
-            ? $user->projects()
-                ->withCount('tasks')
-                ->latest('updated_at')
-                ->limit(4)
-                ->get()
-                ->map(fn ($project): array => [
-                    'id' => $project->id,
-                    'slug' => $project->slug,
-                    'route_identifier' => $project->slug ?: (string) $project->id,
-                    'name' => $project->name,
-                    'icon' => $project->icon,
-                    'tasks_count' => $project->tasks_count,
-                ])
+            ? ProjectResource::collection(
+                $user->projects()
+                    ->withCount('tasks')
+                    ->latest('updated_at')
+                    ->limit(4)
+                    ->get()
+            )
             : collect();
 
         return response()->json([

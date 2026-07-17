@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\KanbanLabel;
+use App\Http\Resources\KanbanTaskResource;
 use App\Models\KanbanTask;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,7 +14,7 @@ class ActivityController extends Controller
     {
         $task = $request->user()
             ->kanbanTasks()
-            ->with('labels')
+            ->with(['labels', 'user'])
             ->whereKey($id)
             ->firstOrFail();
 
@@ -28,31 +28,7 @@ class ActivityController extends Controller
 
         return response()->json([
             'message' => $completed ? 'Attivita completata.' : 'Attivita riaperta.',
-            'data' => $this->serializeTask($task->fresh('labels')),
+            'data' => KanbanTaskResource::make($task->fresh(['labels', 'user'])),
         ]);
-    }
-
-    private function serializeTask(KanbanTask $task): array
-    {
-        return [
-            'id' => $task->id,
-            'task_date' => $task->task_date?->toDateString(),
-            'kanban_column_id' => $task->kanban_column_id,
-            'project_id' => $task->project_id,
-            'title' => $task->title,
-            'description' => $task->description,
-            'due_date' => $task->due_date?->toDateString(),
-            'due_time' => $task->due_time,
-            'color' => $task->color,
-            'status' => $task->status,
-            'is_completed' => $task->is_completed,
-            'completed_at' => $task->completed_at?->toIso8601String(),
-            'position' => $task->position,
-            'labels' => $task->labels->map(fn (KanbanLabel $label): array => [
-                'id' => $label->id,
-                'name' => $label->name,
-                'color' => $label->color,
-            ])->values(),
-        ];
     }
 }

@@ -2,9 +2,12 @@
 
 use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BachecaBoardController;
+use App\Http\Controllers\Api\BachecaColumnController;
+use App\Http\Controllers\Api\BachecaLabelController;
+use App\Http\Controllers\Api\BachecaTaskController;
 use App\Http\Controllers\Api\DiaryNoteController;
 use App\Http\Controllers\Api\HomeController;
-use App\Http\Controllers\Api\KanbanController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\SecretDiaryAuthController;
 use App\Http\Controllers\Api\SecretDiaryNoteController;
@@ -46,27 +49,27 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::delete('/secret-diary/notes/{note}', [SecretDiaryNoteController::class, 'destroy'])->middleware('throttle:api-write');
     });
 
-    Route::get('/bacheca/board', [KanbanController::class, 'board'])->middleware('throttle:api-read');
-    Route::get('/bacheca/daily', [KanbanController::class, 'daily'])->middleware('throttle:api-read');
-    Route::get('/bacheca/projects', [KanbanController::class, 'projects'])->middleware('throttle:api-read');
-    Route::get('/bacheca/project/{identifier}', [KanbanController::class, 'project'])->middleware('throttle:api-read');
+    Route::get('/bacheca/board', [BachecaBoardController::class, 'board'])->middleware('throttle:api-read');
+    Route::get('/bacheca/daily', [BachecaBoardController::class, 'daily'])->middleware('throttle:api-read');
+    Route::get('/bacheca/projects', [BachecaBoardController::class, 'projects'])->middleware('throttle:api-read');
+    Route::get('/bacheca/project/{identifier}', [BachecaBoardController::class, 'project'])->middleware('throttle:api-read');
     Route::post('/projects', [ProjectController::class, 'store'])->middleware('throttle:api-write');
     Route::put('/projects/{project}', [ProjectController::class, 'update'])->middleware('throttle:api-write');
     Route::delete('/projects/{project}', [ProjectController::class, 'destroy'])->middleware('throttle:api-write');
     Route::post('/activities/{id}/toggle-complete', [ActivityController::class, 'toggleComplete'])->middleware('throttle:api-write');
     Route::get('/stats/profile', [StatsController::class, 'profile'])->middleware('throttle:stats');
 
-    Route::post('/bacheca/columns', [KanbanController::class, 'storeColumn'])->middleware('throttle:api-write');
-    Route::put('/bacheca/columns/{column}', [KanbanController::class, 'updateColumn'])->middleware('throttle:api-write');
-    Route::patch('/bacheca/columns/order', [KanbanController::class, 'moveColumns'])->middleware('throttle:api-write');
-    Route::delete('/bacheca/columns/{column}', [KanbanController::class, 'destroyColumn'])->middleware('throttle:api-write');
+    Route::post('/bacheca/columns', [BachecaColumnController::class, 'store'])->middleware('throttle:api-write');
+    Route::put('/bacheca/columns/{column}', [BachecaColumnController::class, 'update'])->middleware('throttle:api-write');
+    Route::patch('/bacheca/columns/order', [BachecaColumnController::class, 'move'])->middleware('throttle:api-write');
+    Route::delete('/bacheca/columns/{column}', [BachecaColumnController::class, 'destroy'])->middleware('throttle:api-write');
 
-    Route::post('/bacheca/tasks', [KanbanController::class, 'storeTask'])->middleware('throttle:api-write');
-    Route::put('/bacheca/tasks/{task}', [KanbanController::class, 'updateTask'])->middleware('throttle:api-write');
-    Route::patch('/bacheca/tasks/{task}/move', [KanbanController::class, 'moveTask'])->middleware('throttle:api-write');
-    Route::delete('/bacheca/tasks/{task}', [KanbanController::class, 'destroyTask'])->middleware('throttle:api-write');
+    Route::post('/bacheca/tasks', [BachecaTaskController::class, 'store'])->middleware('throttle:api-write');
+    Route::put('/bacheca/tasks/{task}', [BachecaTaskController::class, 'update'])->middleware('throttle:api-write');
+    Route::patch('/bacheca/tasks/{task}/move', [BachecaTaskController::class, 'move'])->middleware('throttle:api-write');
+    Route::delete('/bacheca/tasks/{task}', [BachecaTaskController::class, 'destroy'])->middleware('throttle:api-write');
 
-    Route::post('/bacheca/labels', [KanbanController::class, 'storeLabel'])->middleware('throttle:api-write');
-    Route::put('/bacheca/labels/{label}', [KanbanController::class, 'updateLabel'])->middleware('throttle:api-write');
-    Route::delete('/bacheca/labels/{label}', [KanbanController::class, 'destroyLabel'])->middleware('throttle:api-write');
+    Route::post('/bacheca/labels', [BachecaLabelController::class, 'store'])->middleware('throttle:api-write');
+    Route::put('/bacheca/labels/{label}', [BachecaLabelController::class, 'update'])->middleware('throttle:api-write');
+    Route::delete('/bacheca/labels/{label}', [BachecaLabelController::class, 'destroy'])->middleware('throttle:api-write');
 });
