@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Middleware\EnsureSecretDiaryUnlocked;
+use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\SetApiLocale;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -14,12 +17,14 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
-        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
+        // Backend API-only: niente pagina di login lato server, i guest ricevono 401.
+        $middleware->redirectGuestsTo(fn () => null);
+        $middleware->append(SecurityHeaders::class);
         $middleware->appendToGroup('api', [
-            \App\Http\Middleware\SetApiLocale::class,
+            SetApiLocale::class,
         ]);
         $middleware->alias([
-            'secret-diary.unlocked' => \App\Http\Middleware\EnsureSecretDiaryUnlocked::class,
+            'secret-diary.unlocked' => EnsureSecretDiaryUnlocked::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
