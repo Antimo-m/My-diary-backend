@@ -31,13 +31,7 @@ class DiaryNoteController extends Controller
                     ->where('entry_date', '>=', $date)
                     ->where('entry_date', '<', CarbonImmutable::parse($date)->addDay()->toDateString());
             })
-            ->when($search !== '', function ($query) use ($search): void {
-                $query->where(function ($innerQuery) use ($search): void {
-                    $innerQuery
-                        ->where('title', 'like', "%{$search}%")
-                        ->orWhere('body', 'like', "%{$search}%");
-                });
-            })
+            ->when($search !== '', fn ($query) => $query->search($search))
             ->latest('entry_date')
             ->latest('id')
             ->paginate($perPage);
@@ -184,8 +178,6 @@ class DiaryNoteController extends Controller
 
     private function serializeNote(DiaryNote $note): array
     {
-        $bodyPages = $this->paginateBody($note->body ?: __('diary.empty_body'));
-
         return [
             'id' => $note->id,
             'slug' => $note->slug,
@@ -194,28 +186,11 @@ class DiaryNoteController extends Controller
             'formatted_date' => $note->entry_date?->translatedFormat('d F Y'),
             'title' => $note->title,
             'body' => $note->body,
-            'body_pages' => $bodyPages,
-            'page_count' => count($bodyPages),
             'excerpt' => Str::limit($note->body ?: __('diary.empty_excerpt'), 145),
             'photo_dedication' => $note->photo_dedication,
             'cover_image_url' => $note->coverImageUrl() ? url($note->coverImageUrl()) : null,
             'created_at' => $note->created_at?->toISOString(),
             'updated_at' => $note->updated_at?->toISOString(),
         ];
-    }
-
-    private function paginateBody(string $body): array
-    {
-        $normalized = trim(preg_replace("/\r\n|\r/", "\n", $body));
-
-        if ($normalized === '') {
-            return [''];
-        }
-
-        return collect(explode("\n\n", wordwrap($normalized, 620, "\n\n", true)))
-            ->map(fn (string $page): string => trim($page))
-            ->filter()
-            ->values()
-            ->all() ?: [''];
     }
 }

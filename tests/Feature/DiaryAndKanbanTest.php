@@ -136,7 +136,7 @@ class DiaryAndKanbanTest extends TestCase
             ->assertJsonPath('data.id', $first->json('data.id'))
             ->assertJsonPath('data.route_identifier', 'la-mia-giornata');
 
-        $this->assertGreaterThan(1, $slugResponse->json('data.page_count'));
+        $this->assertNotEmpty($slugResponse->json('data.body'));
 
         $this->actingAs($user)
             ->getJson('/api/diary-notes/'.$first->json('data.id'))
