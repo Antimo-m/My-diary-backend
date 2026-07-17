@@ -27,13 +27,6 @@ class HomeController extends Controller
             : collect();
 
         return response()->json([
-            'app' => [
-                'name' => 'My Diary',
-                'tagline' => 'Scrivi la giornata, organizza le attivita, ritrova il filo.',
-                'description' => 'My Diary unisce note private, pagine visive e una bacheca Kanban fluida per dare forma alla tua giornata.',
-                'today' => $today->toDateString(),
-                'formatted_today' => $today->format('d/m/Y'),
-            ],
             'stats' => [
                 'notes' => $user?->diaryNotes()->count() ?? 0,
                 'today_tasks' => $user?->kanbanTasks()
