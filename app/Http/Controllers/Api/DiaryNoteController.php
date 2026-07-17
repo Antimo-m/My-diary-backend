@@ -66,7 +66,7 @@ class DiaryNoteController extends Controller
         $note = $request->user()->diaryNotes()->create($validated);
 
         return response()->json([
-            'message' => 'Pagina diario creata.',
+            'message' => __('diary.note_created'),
             'data' => $this->serializeNote($note),
         ], 201);
     }
@@ -113,7 +113,7 @@ class DiaryNoteController extends Controller
         $diaryNote->update($validated);
 
         return response()->json([
-            'message' => 'Pagina diario aggiornata.',
+            'message' => __('diary.note_updated'),
             'data' => $this->serializeNote($diaryNote->fresh()),
         ]);
     }
@@ -125,7 +125,7 @@ class DiaryNoteController extends Controller
         $diaryNote->delete();
 
         return response()->json([
-            'message' => 'Pagina diario eliminata.',
+            'message' => __('diary.note_deleted'),
         ]);
     }
 
@@ -184,7 +184,7 @@ class DiaryNoteController extends Controller
 
     private function serializeNote(DiaryNote $note): array
     {
-        $bodyPages = $this->paginateBody($note->body ?: 'Questa pagina non contiene ancora testo.');
+        $bodyPages = $this->paginateBody($note->body ?: __('diary.empty_body'));
 
         return [
             'id' => $note->id,
@@ -196,7 +196,7 @@ class DiaryNoteController extends Controller
             'body' => $note->body,
             'body_pages' => $bodyPages,
             'page_count' => count($bodyPages),
-            'excerpt' => Str::limit($note->body ?: 'Pagina ancora vuota, pronta per essere riempita.', 145),
+            'excerpt' => Str::limit($note->body ?: __('diary.empty_excerpt'), 145),
             'photo_dedication' => $note->photo_dedication,
             'cover_image_url' => $note->coverImageUrl() ? url($note->coverImageUrl()) : null,
             'created_at' => $note->created_at?->toISOString(),

@@ -42,9 +42,9 @@ class BachecaBoardService
         }
 
         foreach ([
-            ['title' => 'Cose da fare', 'color' => '#1DB874', 'position' => 0, 'project_id' => $projectId, 'date' => $date],
-            ['title' => 'In corso', 'color' => '#f97316', 'position' => 1, 'project_id' => $projectId, 'date' => $date],
-            ['title' => 'Completate', 'color' => '#22c55e', 'position' => 2, 'project_id' => $projectId, 'date' => $date],
+            ['title' => __('bacheca.default_columns.todo'), 'color' => '#1DB874', 'position' => 0, 'project_id' => $projectId, 'date' => $date],
+            ['title' => __('bacheca.default_columns.doing'), 'color' => '#f97316', 'position' => 1, 'project_id' => $projectId, 'date' => $date],
+            ['title' => __('bacheca.default_columns.done'), 'color' => '#22c55e', 'position' => 2, 'project_id' => $projectId, 'date' => $date],
         ] as $default) {
             $user->kanbanColumns()->create($default);
         }
@@ -66,10 +66,10 @@ class BachecaBoardService
         }
 
         foreach ([
-            ['name' => 'Lavoro', 'color' => '#2563eb'],
-            ['name' => 'Personale', 'color' => '#ec4899'],
-            ['name' => 'Urgente', 'color' => '#ef4444'],
-            ['name' => 'Studio', 'color' => '#8b5cf6'],
+            ['name' => __('bacheca.default_labels.work'), 'color' => '#2563eb'],
+            ['name' => __('bacheca.default_labels.personal'), 'color' => '#ec4899'],
+            ['name' => __('bacheca.default_labels.urgent'), 'color' => '#ef4444'],
+            ['name' => __('bacheca.default_labels.study'), 'color' => '#8b5cf6'],
         ] as $default) {
             $user->kanbanLabels()->create($default);
         }

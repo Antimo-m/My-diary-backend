@@ -27,7 +27,7 @@ class ActivityController extends Controller
         ])->save();
 
         return response()->json([
-            'message' => $completed ? 'Attivita completata.' : 'Attivita riaperta.',
+            'message' => $completed ? __('bacheca.task_completed') : __('bacheca.task_reopened'),
             'data' => KanbanTaskResource::make($task->fresh(['labels', 'user'])),
         ]);
     }

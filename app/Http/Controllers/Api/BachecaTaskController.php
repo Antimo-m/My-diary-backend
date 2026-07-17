@@ -41,7 +41,7 @@ class BachecaTaskController extends Controller
         $task->load(['labels', 'user']);
 
         return response()->json([
-            'message' => 'Attivita creata.',
+            'message' => __('bacheca.task_created'),
             'data' => KanbanTaskResource::make($task),
         ], 201);
     }
@@ -81,7 +81,7 @@ class BachecaTaskController extends Controller
         $kanbanTask->load(['labels', 'user']);
 
         return response()->json([
-            'message' => 'Attivita aggiornata.',
+            'message' => __('bacheca.task_updated'),
             'data' => KanbanTaskResource::make($kanbanTask->fresh(['labels', 'user'])),
         ]);
     }
@@ -121,7 +121,7 @@ class BachecaTaskController extends Controller
         }
 
         return response()->json([
-            'message' => 'Attivita spostata.',
+            'message' => __('bacheca.task_moved'),
             'data' => KanbanTaskResource::make($kanbanTask->fresh(['labels', 'user'])),
         ]);
     }
@@ -130,7 +130,7 @@ class BachecaTaskController extends Controller
     {
         $this->boardService->findOwnedTask($request->user(), $task)->delete();
 
-        return response()->json(['message' => 'Attivita eliminata.']);
+        return response()->json(['message' => __('bacheca.task_deleted')]);
     }
 
     /**
@@ -162,7 +162,7 @@ class BachecaTaskController extends Controller
 
         if ($this->taskReminderService->reminderIsAfterDueDate($attributes)) {
             throw ValidationException::withMessages([
-                'custom_reminder_at' => 'Non puoi impostare un promemoria dopo la scadenza dell attivita.',
+                'custom_reminder_at' => __('bacheca.reminder_after_due'),
             ]);
         }
     }

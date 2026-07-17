@@ -23,7 +23,7 @@ class ProjectController extends Controller
         $project = $request->user()->projects()->create($validated);
 
         return response()->json([
-            'message' => 'Progetto creato.',
+            'message' => __('bacheca.project_created'),
             'data' => ProjectResource::make($project),
         ], 201);
     }
@@ -39,7 +39,7 @@ class ProjectController extends Controller
         $kanbanProject->update($validated);
 
         return response()->json([
-            'message' => 'Progetto aggiornato.',
+            'message' => __('bacheca.project_updated'),
             'data' => ProjectResource::make($kanbanProject->fresh()->loadCount('tasks')),
         ]);
     }
@@ -62,7 +62,7 @@ class ProjectController extends Controller
             $kanbanProject->delete();
         });
 
-        return response()->json(['message' => 'Progetto eliminato.']);
+        return response()->json(['message' => __('bacheca.project_deleted')]);
     }
 
     private function findOwnedProject(Request $request, string $identifier): Project

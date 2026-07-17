@@ -19,7 +19,7 @@ class BachecaLabelController extends Controller
         $label = $request->user()->kanbanLabels()->create($request->validated());
 
         return response()->json([
-            'message' => 'Etichetta creata.',
+            'message' => __('bacheca.label_created'),
             'data' => KanbanLabelResource::make($label),
         ], 201);
     }
@@ -30,7 +30,7 @@ class BachecaLabelController extends Controller
         $kanbanLabel->update($request->validated());
 
         return response()->json([
-            'message' => 'Etichetta aggiornata.',
+            'message' => __('bacheca.label_updated'),
             'data' => KanbanLabelResource::make($kanbanLabel->fresh()),
         ]);
     }
@@ -39,6 +39,6 @@ class BachecaLabelController extends Controller
     {
         $this->boardService->findOwnedLabel($request->user(), $label)->delete();
 
-        return response()->json(['message' => 'Etichetta eliminata.']);
+        return response()->json(['message' => __('bacheca.label_deleted')]);
     }
 }

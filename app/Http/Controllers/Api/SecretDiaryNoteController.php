@@ -66,7 +66,7 @@ class SecretDiaryNoteController extends Controller
         $note = $request->user()->secretDiaryNotes()->create($validated);
 
         return response()->json([
-            'message' => 'Pagina Diario Segreto creata.',
+            'message' => __('secret_diary.note_created'),
             'data' => $this->serializeNote($note),
         ], 201);
     }
@@ -113,7 +113,7 @@ class SecretDiaryNoteController extends Controller
         $secretNote->update($validated);
 
         return response()->json([
-            'message' => 'Pagina Diario Segreto aggiornata.',
+            'message' => __('secret_diary.note_updated'),
             'data' => $this->serializeNote($secretNote->fresh()),
         ]);
     }
@@ -125,7 +125,7 @@ class SecretDiaryNoteController extends Controller
         $secretNote->delete();
 
         return response()->json([
-            'message' => 'Pagina Diario Segreto eliminata.',
+            'message' => __('secret_diary.note_deleted'),
         ]);
     }
 
@@ -184,7 +184,7 @@ class SecretDiaryNoteController extends Controller
 
     private function serializeNote(SecretDiaryNote $note): array
     {
-        $bodyPages = $this->paginateBody($note->body ?: 'Questa pagina non contiene ancora testo.');
+        $bodyPages = $this->paginateBody($note->body ?: __('diary.empty_body'));
         $routeIdentifier = $note->slug ?: (string) $note->id;
 
         return [
@@ -197,7 +197,7 @@ class SecretDiaryNoteController extends Controller
             'body' => $note->body,
             'body_pages' => $bodyPages,
             'page_count' => count($bodyPages),
-            'excerpt' => Str::limit($note->body ?: 'Pagina ancora vuota, pronta per essere riempita.', 145),
+            'excerpt' => Str::limit($note->body ?: __('diary.empty_excerpt'), 145),
             'photo_dedication' => $note->photo_dedication,
             'cover_image_url' => $note->coverImageUrl() ? url($note->coverImageUrl()) : null,
             'created_at' => $note->created_at?->toISOString(),

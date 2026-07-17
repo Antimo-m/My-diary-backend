@@ -2,6 +2,12 @@
 
 return [
     'invalid_password' => 'The Secret Diary password is incorrect.',
+    'password_created' => 'Secret Diary password created.',
+    'unlocked' => 'Secret Diary unlocked.',
+    'locked_now' => 'Secret Diary locked.',
+    'note_created' => 'Secret Diary page created.',
+    'note_updated' => 'Secret Diary page updated.',
+    'note_deleted' => 'Secret Diary page deleted.',
     'locked' => 'Secret Diary is locked. Enter the password to continue.',
     'password_already_exists' => 'The Secret Diary password already exists.',
     'password_updated' => 'Secret Diary password updated.',

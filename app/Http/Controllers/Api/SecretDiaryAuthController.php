@@ -47,7 +47,7 @@ class SecretDiaryAuthController extends Controller
         SecretDiarySession::unlock($request);
 
         return response()->json([
-            'message' => 'Password Diario Segreto creata.',
+            'message' => __('secret_diary.password_created'),
             'data' => SecretDiarySession::status($request, $user->fresh()),
         ], 201);
     }
@@ -69,7 +69,7 @@ class SecretDiaryAuthController extends Controller
         SecretDiarySession::unlock($request);
 
         return response()->json([
-            'message' => 'Diario Segreto sbloccato.',
+            'message' => __('secret_diary.unlocked'),
             'data' => SecretDiarySession::status($request, $user),
         ]);
     }
@@ -79,7 +79,7 @@ class SecretDiaryAuthController extends Controller
         SecretDiarySession::lock($request);
 
         return response()->json([
-            'message' => 'Diario Segreto bloccato.',
+            'message' => __('secret_diary.locked_now'),
             'data' => SecretDiarySession::status($request, $request->user()),
         ]);
     }

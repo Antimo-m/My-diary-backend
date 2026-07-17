@@ -42,7 +42,7 @@ class AuthController extends Controller
         }
 
         return response()->json([
-            'message' => 'Registrazione completata.',
+            'message' => __('account.registered'),
             'user' => $this->serializeUser($request->user()),
         ], 201);
     }
@@ -67,7 +67,7 @@ class AuthController extends Controller
         }
 
         return response()->json([
-            'message' => 'Login effettuato.',
+            'message' => __('account.logged_in'),
             'user' => $this->serializeUser($request->user()),
         ]);
     }
@@ -89,7 +89,7 @@ class AuthController extends Controller
         }
 
         return response()->json([
-            'message' => 'Se l email e registrata, riceverai un link per reimpostare la password.',
+            'message' => __('account.reset_link_sent'),
         ]);
     }
 
@@ -123,7 +123,7 @@ class AuthController extends Controller
         }
 
         return response()->json([
-            'message' => 'Password aggiornata.',
+            'message' => __('account.password_updated'),
         ]);
     }
 
@@ -147,7 +147,7 @@ class AuthController extends Controller
         $user->update($validated);
 
         return response()->json([
-            'message' => 'Profilo aggiornato.',
+            'message' => __('account.profile_updated'),
             'user' => $this->serializeUser($user->refresh()),
         ]);
     }
@@ -188,7 +188,7 @@ class AuthController extends Controller
         });
 
         return response()->json([
-            'message' => 'Account eliminato.',
+            'message' => __('account.account_deleted'),
         ]);
     }
 
@@ -208,7 +208,7 @@ class AuthController extends Controller
         }
 
         return response()->json([
-            'message' => 'Logout effettuato.',
+            'message' => __('account.logged_out'),
         ]);
     }
 

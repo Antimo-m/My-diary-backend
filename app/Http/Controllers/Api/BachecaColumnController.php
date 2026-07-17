@@ -28,7 +28,7 @@ class BachecaColumnController extends Controller
         $column = $user->kanbanColumns()->create($validated);
 
         return response()->json([
-            'message' => 'Colonna creata.',
+            'message' => __('bacheca.column_created'),
             'data' => KanbanColumnResource::make($column),
         ], 201);
     }
@@ -39,7 +39,7 @@ class BachecaColumnController extends Controller
         $kanbanColumn->update($request->validated());
 
         return response()->json([
-            'message' => 'Colonna aggiornata.',
+            'message' => __('bacheca.column_updated'),
             'data' => KanbanColumnResource::make($kanbanColumn->fresh()),
         ]);
     }
@@ -57,7 +57,7 @@ class BachecaColumnController extends Controller
                 ->update(['position' => $position]);
         }
 
-        return response()->json(['message' => 'Colonne riordinate.']);
+        return response()->json(['message' => __('bacheca.columns_reordered')]);
     }
 
     public function destroy(Request $request, string $column): JsonResponse
@@ -77,6 +77,6 @@ class BachecaColumnController extends Controller
             $kanbanColumn->delete();
         });
 
-        return response()->json(['message' => 'Colonna eliminata.']);
+        return response()->json(['message' => __('bacheca.column_deleted')]);
     }
 }
