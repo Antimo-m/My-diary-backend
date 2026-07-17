@@ -16,12 +16,14 @@ class KanbanColumn extends Model
         'title',
         'color',
         'position',
+        'date',
     ];
 
     protected function casts(): array
     {
         return [
             'position' => 'integer',
+            'date' => 'date',
         ];
     }
 

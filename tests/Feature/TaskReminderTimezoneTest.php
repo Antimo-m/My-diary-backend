@@ -22,7 +22,7 @@ class TaskReminderTimezoneTest extends TestCase
     {
         [$user, $columnId] = $this->userAndColumn('Europe/Rome');
 
-        $response = $this->actingAs($user)->postJson('/api/kanban/tasks', [
+        $response = $this->actingAs($user)->postJson('/api/bacheca/tasks', [
             'task_date' => '2026-06-08',
             'kanban_column_id' => $columnId,
             'title' => 'Promemoria estivo',
@@ -42,9 +42,9 @@ class TaskReminderTimezoneTest extends TestCase
 
     public function test_winter_reminder_uses_the_one_hour_rome_offset(): void
     {
-        [$user, $columnId] = $this->userAndColumn('Europe/Rome');
+        [$user, $columnId] = $this->userAndColumn('Europe/Rome', '2026-01-15');
 
-        $response = $this->actingAs($user)->postJson('/api/kanban/tasks', [
+        $response = $this->actingAs($user)->postJson('/api/bacheca/tasks', [
             'task_date' => '2026-01-15',
             'kanban_column_id' => $columnId,
             'title' => 'Promemoria invernale',
@@ -172,7 +172,7 @@ class TaskReminderTimezoneTest extends TestCase
         $this->assertSame('+00:00', config('database.connections.mysql.timezone'));
     }
 
-    private function userAndColumn(string $timezone): array
+    private function userAndColumn(string $timezone, string $date = '2026-06-08'): array
     {
         $user = User::factory()->create([
             'locale' => 'it',
@@ -180,7 +180,7 @@ class TaskReminderTimezoneTest extends TestCase
         ]);
 
         $board = $this->actingAs($user)
-            ->getJson('/api/kanban/daily?date=2026-06-08')
+            ->getJson("/api/bacheca/daily?date={$date}")
             ->assertOk();
 
         return [$user, $board->json('columns.0.id')];

@@ -32,9 +32,9 @@ class KanbanController extends Controller
 
         $selectedDate = $validated['date'] ?? today()->toDateString();
         $nextDate = CarbonImmutable::parse($selectedDate)->addDay()->toDateString();
-        $columns = $this->ensureBoardColumns($request, null);
+        $columns = $this->ensureBoardColumns($request, null, $selectedDate);
         $labels = $this->ensureBoardLabels($request);
-        $this->attachLegacyTasksToColumns($request, $columns);
+        $this->attachLegacyTasksToColumns($request, $columns, $selectedDate, $nextDate);
 
         $tasks = $request->user()
             ->kanbanTasks()
@@ -105,10 +105,12 @@ class KanbanController extends Controller
             'title' => ['required', 'string', 'max:80'],
             'color' => ['nullable', 'string', 'regex:/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/'],
             'project_id' => ['nullable', 'integer'],
+            'date' => ['nullable', 'date'],
         ]);
 
         $validated['project_id'] = $this->resolveProjectId($request, $validated);
-        $validated['position'] = (int) $this->boardColumnsQuery($request, $validated['project_id'])->max('position') + 1;
+        $validated['date'] = $validated['project_id'] ? null : ($validated['date'] ?? today()->toDateString());
+        $validated['position'] = (int) $this->boardColumnsQuery($request, $validated['project_id'], $validated['date'])->max('position') + 1;
         $validated['color'] = $validated['color'] ?? '#1DB874';
 
         $column = $request->user()->kanbanColumns()->create($validated);
@@ -141,11 +143,13 @@ class KanbanController extends Controller
             'ordered_ids' => ['required', 'array'],
             'ordered_ids.*' => ['integer'],
             'project_id' => ['nullable', 'integer'],
+            'date' => ['nullable', 'date'],
         ]);
         $projectId = $this->resolveProjectId($request, $validated);
+        $date = $projectId ? null : ($validated['date'] ?? today()->toDateString());
 
         foreach ($validated['ordered_ids'] as $position => $columnId) {
-            $this->boardColumnsQuery($request, $projectId)
+            $this->boardColumnsQuery($request, $projectId, $date)
                 ->whereKey($columnId)
                 ->update(['position' => $position]);
         }
@@ -211,6 +215,7 @@ class KanbanController extends Controller
             $validated['kanban_column_id'] = $this->resolveColumnId($request, [
                 ...$validated,
                 'project_id' => $validated['project_id'] ?? $kanbanTask->project_id,
+                'task_date' => $validated['task_date'] ?? $kanbanTask->task_date?->toDateString(),
             ]);
         }
 
@@ -245,7 +250,12 @@ class KanbanController extends Controller
             'ordered_ids' => ['nullable', 'array'],
             'ordered_ids.*' => ['integer'],
         ]);
-        $column = $this->findOwnedColumnInProject($request, (string) $validated['kanban_column_id'], $kanbanTask->project_id);
+        $column = $this->findOwnedColumnInProject(
+            $request,
+            (string) $validated['kanban_column_id'],
+            $kanbanTask->project_id,
+            $kanbanTask->project_id ? null : $kanbanTask->task_date?->toDateString(),
+        );
 
         $kanbanTask->update([
             'kanban_column_id' => $column->id,
@@ -382,9 +392,9 @@ class KanbanController extends Controller
             ->firstOrFail();
     }
 
-    private function findOwnedColumnInProject(Request $request, string $id, ?int $projectId): KanbanColumn
+    private function findOwnedColumnInProject(Request $request, string $id, ?int $projectId, ?string $date = null): KanbanColumn
     {
-        return $this->boardColumnsQuery($request, $projectId)
+        return $this->boardColumnsQuery($request, $projectId, $date)
             ->whereKey($id)
             ->firstOrFail();
     }
@@ -422,9 +432,10 @@ class KanbanController extends Controller
     private function resolveColumnId(Request $request, array $validated): int
     {
         $projectId = $validated['project_id'] ?? null;
+        $date = $projectId ? null : ($validated['task_date'] ?? today()->toDateString());
 
         if (! empty($validated['kanban_column_id'])) {
-            return $this->findOwnedColumnInProject($request, (string) $validated['kanban_column_id'], $projectId)->id;
+            return $this->findOwnedColumnInProject($request, (string) $validated['kanban_column_id'], $projectId, $date)->id;
         }
 
         $status = $validated['status'] ?? KanbanTask::STATUS_TODO;
@@ -433,7 +444,7 @@ class KanbanController extends Controller
             KanbanTask::STATUS_DONE => 2,
             default => 0,
         };
-        $columns = $this->ensureBoardColumns($request, $projectId);
+        $columns = $this->ensureBoardColumns($request, $projectId, $date);
 
         return (int) $columns->get($index)?->id
             ?: (int) $columns->first()->id;
@@ -455,20 +466,21 @@ class KanbanController extends Controller
             ->max('position') + 1;
     }
 
-    private function boardColumnsQuery(Request $request, ?int $projectId)
+    private function boardColumnsQuery(Request $request, ?int $projectId, ?string $date = null)
     {
         return $request->user()
             ->kanbanColumns()
             ->when(
                 $projectId,
                 fn ($query, $id) => $query->where('project_id', $id),
-                fn ($query) => $query->whereNull('project_id'),
+                fn ($query) => $query->whereNull('project_id')->whereDate('date', $date ?? today()->toDateString()),
             );
     }
 
-    private function ensureBoardColumns(Request $request, ?int $projectId = null)
+    private function ensureBoardColumns(Request $request, ?int $projectId = null, ?string $date = null)
     {
-        $columns = $this->boardColumnsQuery($request, $projectId)
+        $date = $projectId ? null : ($date ?? today()->toDateString());
+        $columns = $this->boardColumnsQuery($request, $projectId, $date)
             ->orderBy('position')
             ->get();
 
@@ -477,14 +489,14 @@ class KanbanController extends Controller
         }
 
         foreach ([
-            ['title' => 'Da fare', 'color' => '#06b6d4', 'position' => 0, 'project_id' => $projectId],
-            ['title' => 'In corso', 'color' => '#f97316', 'position' => 1, 'project_id' => $projectId],
-            ['title' => 'Completato', 'color' => '#22c55e', 'position' => 2, 'project_id' => $projectId],
+            ['title' => 'Cose da fare', 'color' => '#1DB874', 'position' => 0, 'project_id' => $projectId, 'date' => $date],
+            ['title' => 'In corso', 'color' => '#f97316', 'position' => 1, 'project_id' => $projectId, 'date' => $date],
+            ['title' => 'Completate', 'color' => '#22c55e', 'position' => 2, 'project_id' => $projectId, 'date' => $date],
         ] as $default) {
             $request->user()->kanbanColumns()->create($default);
         }
 
-        return $this->boardColumnsQuery($request, $projectId)
+        return $this->boardColumnsQuery($request, $projectId, $date)
             ->orderBy('position')
             ->get();
     }
@@ -515,12 +527,14 @@ class KanbanController extends Controller
             ->get();
     }
 
-    private function attachLegacyTasksToColumns(Request $request, $columns): void
+    private function attachLegacyTasksToColumns(Request $request, $columns, string $selectedDate, string $nextDate): void
     {
         $hasOrphanTasks = $request->user()
             ->kanbanTasks()
             ->whereNull('kanban_column_id')
             ->whereNull('project_id')
+            ->where('task_date', '>=', $selectedDate)
+            ->where('task_date', '<', $nextDate)
             ->exists();
 
         if (! $hasOrphanTasks) {
@@ -543,6 +557,8 @@ class KanbanController extends Controller
                 ->whereNull('kanban_column_id')
                 ->whereNull('project_id')
                 ->where('status', $status)
+                ->where('task_date', '>=', $selectedDate)
+                ->where('task_date', '<', $nextDate)
                 ->update(['kanban_column_id' => $columnId]);
         }
     }

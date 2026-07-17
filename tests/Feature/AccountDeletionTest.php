@@ -55,7 +55,7 @@ class AccountDeletionTest extends TestCase
         $note = $user->diaryNotes()->firstOrFail();
         Storage::disk('local')->assertExists($note->cover_image);
 
-        $this->actingAs($user)->postJson('/api/kanban/tasks', [
+        $this->actingAs($user)->postJson('/api/bacheca/tasks', [
             'task_date' => '2026-06-01',
             'title' => 'Task da rimuovere',
         ])->assertCreated();

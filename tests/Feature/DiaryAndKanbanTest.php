@@ -30,7 +30,7 @@ class DiaryAndKanbanTest extends TestCase
     {
         $this->getJson('/api/diary-notes')->assertUnauthorized();
         $this->get('/api/diary-notes/1/cover')->assertUnauthorized();
-        $this->getJson('/api/kanban/board')->assertUnauthorized();
+        $this->getJson('/api/bacheca/board')->assertUnauthorized();
     }
 
     public function test_authenticated_user_can_create_list_update_and_delete_a_diary_note(): void
@@ -178,7 +178,7 @@ class DiaryAndKanbanTest extends TestCase
         $user = User::factory()->create();
 
         $board = $this->actingAs($user)
-            ->getJson('/api/kanban/board?date=2026-06-01')
+            ->getJson('/api/bacheca/board?date=2026-06-01')
             ->assertOk()
             ->assertJsonCount(3, 'columns')
             ->assertJsonCount(4, 'labels');
@@ -186,7 +186,7 @@ class DiaryAndKanbanTest extends TestCase
         $columnId = $board->json('columns.0.id');
         $labelId = $board->json('labels.0.id');
 
-        $taskResponse = $this->actingAs($user)->postJson('/api/kanban/tasks', [
+        $taskResponse = $this->actingAs($user)->postJson('/api/bacheca/tasks', [
             'task_date' => '2026-06-01',
             'kanban_column_id' => $columnId,
             'title' => 'Scrivere retrospettiva',
@@ -203,21 +203,22 @@ class DiaryAndKanbanTest extends TestCase
             'kanban_label_id' => $labelId,
         ]);
 
-        $newColumnResponse = $this->actingAs($user)->postJson('/api/kanban/columns', [
+        $newColumnResponse = $this->actingAs($user)->postJson('/api/bacheca/columns', [
             'title' => 'In revisione',
             'color' => '#14b8a6',
+            'date' => '2026-06-01',
         ])->assertCreated();
 
         $newColumnId = $newColumnResponse->json('data.id');
 
-        $this->actingAs($user)->patchJson("/api/kanban/tasks/{$taskId}/move", [
+        $this->actingAs($user)->patchJson("/api/bacheca/tasks/{$taskId}/move", [
             'kanban_column_id' => $newColumnId,
             'position' => 0,
             'status' => KanbanTask::STATUS_DOING,
         ])->assertOk()
             ->assertJsonPath('data.kanban_column_id', $newColumnId);
 
-        $this->actingAs($user)->putJson("/api/kanban/tasks/{$taskId}", [
+        $this->actingAs($user)->putJson("/api/bacheca/tasks/{$taskId}", [
             'title' => 'Retrospettiva aggiornata',
             'label_ids' => [],
         ])->assertOk()
@@ -228,19 +229,19 @@ class DiaryAndKanbanTest extends TestCase
             'kanban_label_id' => $labelId,
         ]);
 
-        $createdLabel = $this->actingAs($user)->postJson('/api/kanban/labels', [
+        $createdLabel = $this->actingAs($user)->postJson('/api/bacheca/labels', [
             'name' => 'Focus',
             'color' => '#8b5cf6',
         ])->assertCreated();
 
-        $this->actingAs($user)->putJson('/api/kanban/labels/'.$createdLabel->json('data.id'), [
+        $this->actingAs($user)->putJson('/api/bacheca/labels/'.$createdLabel->json('data.id'), [
             'name' => 'Deep work',
             'color' => '#8b5cf6',
         ])->assertOk()
             ->assertJsonPath('data.name', 'Deep work');
 
         $this->actingAs($user)
-            ->deleteJson("/api/kanban/tasks/{$taskId}")
+            ->deleteJson("/api/bacheca/tasks/{$taskId}")
             ->assertOk();
 
         $this->assertDatabaseMissing('kanban_tasks', ['id' => $taskId]);
@@ -258,7 +259,7 @@ class DiaryAndKanbanTest extends TestCase
         ]);
 
         $this->actingAs($otherUser)
-            ->putJson("/api/kanban/tasks/{$task->id}", [
+            ->putJson("/api/bacheca/tasks/{$task->id}", [
                 'status' => KanbanTask::STATUS_DONE,
             ])
             ->assertNotFound();
@@ -269,12 +270,12 @@ class DiaryAndKanbanTest extends TestCase
         $user = User::factory()->create();
 
         $board = $this->actingAs($user)
-            ->getJson('/api/kanban/board?date=2026-06-01')
+            ->getJson('/api/bacheca/board?date=2026-06-01')
             ->assertOk();
 
         $deletedColumnId = $board->json('columns.0.id');
 
-        $taskResponse = $this->actingAs($user)->postJson('/api/kanban/tasks', [
+        $taskResponse = $this->actingAs($user)->postJson('/api/bacheca/tasks', [
             'task_date' => '2026-06-01',
             'kanban_column_id' => $deletedColumnId,
             'title' => 'Task da eliminare',
@@ -282,7 +283,7 @@ class DiaryAndKanbanTest extends TestCase
         ])->assertCreated();
 
         $this->actingAs($user)
-            ->deleteJson("/api/kanban/columns/{$deletedColumnId}")
+            ->deleteJson("/api/bacheca/columns/{$deletedColumnId}")
             ->assertOk();
 
         $this->assertDatabaseMissing('kanban_columns', ['id' => $deletedColumnId]);
@@ -296,7 +297,7 @@ class DiaryAndKanbanTest extends TestCase
         $user = User::factory()->create();
 
         $dailyBoard = $this->actingAs($user)
-            ->getJson('/api/kanban/daily?date=2026-06-01')
+            ->getJson('/api/bacheca/daily?date=2026-06-01')
             ->assertOk();
 
         $projectResponse = $this->actingAs($user)->postJson('/api/projects', [
@@ -310,11 +311,11 @@ class DiaryAndKanbanTest extends TestCase
         $projectSlug = $projectResponse->json('data.slug');
 
         $projectBoard = $this->actingAs($user)
-            ->getJson("/api/kanban/project/{$projectSlug}")
+            ->getJson("/api/bacheca/project/{$projectSlug}")
             ->assertOk()
             ->assertJsonCount(3, 'columns');
 
-        $this->actingAs($user)->postJson('/api/kanban/tasks', [
+        $this->actingAs($user)->postJson('/api/bacheca/tasks', [
             'project_id' => $projectId,
             'kanban_column_id' => $projectBoard->json('columns.0.id'),
             'title' => 'Preparare esame',
@@ -323,24 +324,24 @@ class DiaryAndKanbanTest extends TestCase
             ->assertJsonPath('data.project_id', $projectId);
 
         $this->actingAs($user)
-            ->getJson('/api/kanban/projects')
+            ->getJson('/api/bacheca/projects')
             ->assertOk()
             ->assertJsonPath('data.0.tasks_count', 1);
 
         $this->actingAs($user)
-            ->getJson("/api/kanban/project/{$projectSlug}")
+            ->getJson("/api/bacheca/project/{$projectSlug}")
             ->assertOk()
             ->assertJsonPath('project.name', 'Universita')
             ->assertJsonPath('project.route_identifier', 'universita')
             ->assertJsonPath('columns.0.tasks.0.title', 'Preparare esame');
 
         $this->actingAs($user)
-            ->getJson("/api/kanban/project/{$projectId}")
+            ->getJson("/api/bacheca/project/{$projectId}")
             ->assertOk()
             ->assertJsonPath('project.slug', 'universita');
 
         $this->actingAs($user)
-            ->getJson('/api/kanban/daily?date=2026-06-01')
+            ->getJson('/api/bacheca/daily?date=2026-06-01')
             ->assertOk()
             ->assertJsonPath('columns.0.tasks', []);
     }
@@ -350,15 +351,16 @@ class DiaryAndKanbanTest extends TestCase
         $user = User::factory()->create();
 
         $dailyBoard = $this->actingAs($user)
-            ->getJson('/api/kanban/daily?date=2026-06-01')
+            ->getJson('/api/bacheca/daily?date=2026-06-01')
             ->assertOk();
 
-        $dailyColumn = $this->actingAs($user)->postJson('/api/kanban/columns', [
+        $dailyColumn = $this->actingAs($user)->postJson('/api/bacheca/columns', [
             'title' => 'In revisione',
             'color' => '#14b8a6',
+            'date' => '2026-06-01',
         ])->assertCreated();
 
-        $label = $this->actingAs($user)->postJson('/api/kanban/labels', [
+        $label = $this->actingAs($user)->postJson('/api/bacheca/labels', [
             'name' => 'Urgente davvero',
             'color' => '#ef4444',
         ])->assertCreated();
@@ -369,40 +371,74 @@ class DiaryAndKanbanTest extends TestCase
         ])->assertCreated()->json('data.id');
 
         $projectBoard = $this->actingAs($user)
-            ->getJson("/api/kanban/project/{$projectId}")
+            ->getJson("/api/bacheca/project/{$projectId}")
             ->assertOk()
             ->assertJsonMissing(['title' => 'In revisione'])
             ->assertJsonPath('labels.4.id', $label->json('data.id'));
 
-        $projectColumn = $this->actingAs($user)->postJson('/api/kanban/columns', [
+        $projectColumn = $this->actingAs($user)->postJson('/api/bacheca/columns', [
             'project_id' => $projectId,
             'title' => 'Pronto per review',
             'color' => '#6366f1',
         ])->assertCreated();
 
-        $this->actingAs($user)->postJson('/api/kanban/tasks', [
+        $this->actingAs($user)->postJson('/api/bacheca/tasks', [
             'project_id' => $projectId,
             'kanban_column_id' => $dailyBoard->json('columns.0.id'),
             'title' => 'Non deve passare',
         ])->assertNotFound();
 
-        $this->actingAs($user)->postJson('/api/kanban/tasks', [
+        $this->actingAs($user)->postJson('/api/bacheca/tasks', [
             'task_date' => '2026-06-01',
             'kanban_column_id' => $projectBoard->json('columns.0.id'),
             'title' => 'Daily in colonna progetto',
         ])->assertNotFound();
 
         $this->actingAs($user)
-            ->getJson('/api/kanban/daily?date=2026-06-01')
+            ->getJson('/api/bacheca/daily?date=2026-06-01')
             ->assertOk()
             ->assertJsonPath('columns.3.id', $dailyColumn->json('data.id'))
             ->assertJsonMissing(['title' => 'Pronto per review']);
 
         $this->actingAs($user)
-            ->getJson("/api/kanban/project/{$projectId}")
+            ->getJson("/api/bacheca/project/{$projectId}")
             ->assertOk()
             ->assertJsonPath('columns.3.id', $projectColumn->json('data.id'))
             ->assertJsonPath('labels.4.name', 'Urgente davvero');
+    }
+
+    public function test_daily_kanban_columns_are_scoped_to_their_own_date(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->getJson('/api/bacheca/daily?date=2026-07-10')
+            ->assertOk();
+
+        $columnResponse = $this->actingAs($user)->postJson('/api/bacheca/columns', [
+            'title' => 'Spesa',
+            'color' => '#1db874',
+            'date' => '2026-07-10',
+        ])->assertCreated();
+
+        $columnId = $columnResponse->json('data.id');
+
+        $this->actingAs($user)
+            ->getJson('/api/bacheca/daily?date=2026-07-10')
+            ->assertOk()
+            ->assertJsonPath('columns.3.id', $columnId);
+
+        $otherDayBoard = $this->actingAs($user)
+            ->getJson('/api/bacheca/daily?date=2026-07-11')
+            ->assertOk()
+            ->assertJsonCount(3, 'columns');
+
+        $this->assertNotContains($columnId, collect($otherDayBoard->json('columns'))->pluck('id')->all());
+
+        $this->actingAs($user)
+            ->getJson('/api/bacheca/daily?date=2026-07-10')
+            ->assertOk()
+            ->assertJsonCount(4, 'columns');
     }
 
     public function test_authenticated_user_can_update_and_delete_custom_kanban_projects(): void
@@ -415,10 +451,10 @@ class DiaryAndKanbanTest extends TestCase
         ])->assertCreated()->json('data.id');
 
         $projectBoard = $this->actingAs($user)
-            ->getJson("/api/kanban/project/{$projectId}")
+            ->getJson("/api/bacheca/project/{$projectId}")
             ->assertOk();
 
-        $taskId = $this->actingAs($user)->postJson('/api/kanban/tasks', [
+        $taskId = $this->actingAs($user)->postJson('/api/bacheca/tasks', [
             'project_id' => $projectId,
             'kanban_column_id' => $projectBoard->json('columns.0.id'),
             'title' => 'Task progetto',
@@ -451,10 +487,10 @@ class DiaryAndKanbanTest extends TestCase
         ]);
 
         $board = $this->actingAs($user)
-            ->getJson('/api/kanban/daily?date=2026-06-01')
+            ->getJson('/api/bacheca/daily?date=2026-06-01')
             ->assertOk();
 
-        $taskResponse = $this->actingAs($user)->postJson('/api/kanban/tasks', [
+        $taskResponse = $this->actingAs($user)->postJson('/api/bacheca/tasks', [
             'task_date' => '2026-06-01',
             'kanban_column_id' => $board->json('columns.0.id'),
             'title' => 'Promemoria locale',
@@ -473,7 +509,7 @@ class DiaryAndKanbanTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->getJson('/api/kanban/daily?date=2026-06-01')
+            ->getJson('/api/bacheca/daily?date=2026-06-01')
             ->assertOk()
             ->assertJsonPath('columns.0.tasks.0.custom_reminder_at', '2026-06-01T21:00');
     }
@@ -637,10 +673,10 @@ class DiaryAndKanbanTest extends TestCase
         $user = User::factory()->create();
 
         $board = $this->actingAs($user)
-            ->getJson('/api/kanban/board?date=2026-06-01')
+            ->getJson('/api/bacheca/board?date=2026-06-01')
             ->assertOk();
 
-        $this->actingAs($user)->postJson('/api/kanban/tasks', [
+        $this->actingAs($user)->postJson('/api/bacheca/tasks', [
             'task_date' => '2026-06-01',
             'kanban_column_id' => $board->json('columns.0.id'),
             'title' => 'Task con reminder non valido',
@@ -663,10 +699,10 @@ class DiaryAndKanbanTest extends TestCase
         ]);
 
         $board = $this->actingAs($user)
-            ->getJson('/api/kanban/board?date=2026-06-01')
+            ->getJson('/api/bacheca/board?date=2026-06-01')
             ->assertOk();
 
-        $taskResponse = $this->actingAs($user)->postJson('/api/kanban/tasks', [
+        $taskResponse = $this->actingAs($user)->postJson('/api/bacheca/tasks', [
             'task_date' => '2026-06-01',
             'kanban_column_id' => $board->json('columns.0.id'),
             'title' => 'Solo promemoria',
