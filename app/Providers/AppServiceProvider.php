@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\Password;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -24,6 +25,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Unica fonte di verita per la robustezza delle password account:
+        // il frontend non replica queste regole, mostra solo gli errori restituiti.
+        Password::defaults(fn (): Password => Password::min(8)->mixedCase()->numbers()->symbols());
+
         RateLimiter::for('auth-login', function (Request $request): Limit {
             $email = Str::lower((string) $request->input('email', 'guest'));
 
