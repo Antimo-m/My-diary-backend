@@ -71,6 +71,11 @@ class User extends Authenticatable
         return $this->hasMany(KanbanColumn::class);
     }
 
+    public function reports(): HasMany
+    {
+        return $this->hasMany(UserReport::class);
+    }
+
     public function kanbanLabels(): HasMany
     {
         return $this->hasMany(KanbanLabel::class);

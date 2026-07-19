@@ -6,6 +6,7 @@
 return [
 
     'monitoring' => (bool) env('FEATURE_MONITORING', true),
+    'reports' => (bool) env('FEATURE_REPORTS', true),
     'secret_diary' => (bool) env('FEATURE_SECRET_DIARY', true),
 
 ];

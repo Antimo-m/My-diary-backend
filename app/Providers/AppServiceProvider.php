@@ -54,6 +54,10 @@ class AppServiceProvider extends ServiceProvider
         // soglia grazie al dedupe del modulo React.
         RateLimiter::for('frontend-errors', fn (Request $request): Limit => Limit::perMinute((int) config('monitoring.reports_per_minute'))->by($request->ip()));
 
+        // Segnalazioni utenti: gia dietro autenticazione, il tetto orario per
+        // utente chiude la porta a flood e spam.
+        RateLimiter::for('user-reports', fn (Request $request): Limit => Limit::perHour(5)->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
+
         RateLimiter::for('password-reset', function (Request $request): Limit {
             $email = Str::lower((string) $request->input('email', 'guest'));
 

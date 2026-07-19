@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\SecretDiaryAuthController;
 use App\Http\Controllers\Api\SecretDiaryNoteController;
 use App\Http\Controllers\Api\StatsController;
+use App\Http\Controllers\Api\UserReportController;
 use Illuminate\Support\Facades\Route;
 
 // The same route map is exposed both unversioned (legacy clients and stable
@@ -80,6 +81,18 @@ $apiV1Routes = function (): void {
         Route::post('/bacheca/labels', [BachecaLabelController::class, 'store'])->middleware('throttle:api-write');
         Route::put('/bacheca/labels/{label}', [BachecaLabelController::class, 'update'])->middleware('throttle:api-write');
         Route::delete('/bacheca/labels/{label}', [BachecaLabelController::class, 'destroy'])->middleware('throttle:api-write');
+
+        // Segnalazioni: modulo separato dal monitoraggio automatico.
+        Route::middleware('feature:reports')->group(function (): void {
+            Route::post('/reports', [UserReportController::class, 'store'])->middleware('throttle:user-reports');
+            Route::get('/reports/mine', [UserReportController::class, 'mine'])->middleware('throttle:api-read');
+
+            Route::middleware('role:admin')->prefix('admin/reports')->group(function (): void {
+                Route::get('/', [UserReportController::class, 'index'])->middleware('throttle:api-read');
+                Route::get('/stats', [UserReportController::class, 'stats'])->middleware('throttle:api-read');
+                Route::patch('/{report}', [UserReportController::class, 'update'])->middleware('throttle:api-write');
+            });
+        });
 
         Route::middleware(['feature:monitoring', 'role:admin'])->prefix('monitoring')->group(function (): void {
             Route::get('/errors', [FrontendErrorController::class, 'index'])->middleware('throttle:api-read');
