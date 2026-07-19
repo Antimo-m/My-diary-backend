@@ -7,8 +7,8 @@ use App\Models\User;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Registrazione dei report di errore inviati dal frontend: sanifica i campi
- * a rischio, arricchisce con i dati noti solo al server e persiste.
+ * Registrazione dei report inviati dal frontend: sanifica i campi a rischio,
+ * arricchisce con i dati noti solo al server e persiste.
  *
  * Volutamente sincrono: l'insert e economico e la coda dell'app e sync.
  * Se in futuro servissero alert o inoltro a terzi, questo e il punto in cui
@@ -21,28 +21,44 @@ class FrontendErrorRecorder
         $url = $this->sanitizeUrl($report['url']);
         $message = $report['message'];
 
+        // Il fingerprint del client (calcolato dal modulo React su messaggio
+        // normalizzato + frame dello stack) e piu preciso del fallback
+        // server-side; il formato e comunque validato dalla FormRequest.
+        $fingerprint = $report['fingerprint']
+            ?? sha1(($report['source']).'|'.mb_substr($message, 0, 300));
+
         $error = FrontendError::create([
             'user_id' => $user?->id,
-            'fingerprint' => sha1($report['source'].'|'.mb_substr($message, 0, 300)),
+            'kind' => $report['kind'] ?? 'error',
+            'fingerprint' => $fingerprint,
             'message' => $message,
             'stack' => $report['stack'] ?? null,
             'component_stack' => $report['component_stack'] ?? null,
             'source' => $report['source'],
             'url' => $url,
             'page' => $this->pageFromUrl($url),
+            'route' => $report['route'] ?? null,
             'user_agent' => $report['user_agent'],
             'browser' => $report['browser'] ?? null,
+            'os' => $report['os'] ?? null,
+            'viewport' => $report['viewport'] ?? null,
+            'language' => $report['language'] ?? null,
             'app_version' => $report['app_version'] ?? null,
+            'commit_sha' => $report['commit_sha'] ?? null,
+            'environment' => $report['environment'] ?? null,
+            'data' => $report['data'] ?? null,
             'ip' => $ip,
             'occurred_at' => $report['occurred_at'],
         ]);
 
         Log::channel('frontend')->error($message, [
             'id' => $error->id,
+            'kind' => $error->kind,
             'fingerprint' => $error->fingerprint,
             'source' => $error->source,
             'page' => $error->page,
             'user_id' => $error->user_id,
+            'app_version' => $error->app_version,
         ]);
 
         return $error;

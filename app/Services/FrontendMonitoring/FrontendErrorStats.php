@@ -22,6 +22,8 @@ class FrontendErrorStats
             'period_days' => $days,
             'totals' => [
                 'errors' => $base()->count(),
+                'today' => FrontendError::where('occurred_at', '>=', Carbon::today())->count(),
+                'week' => FrontendError::where('occurred_at', '>=', Carbon::now()->subDays(6)->startOfDay())->count(),
                 'groups' => $base()->distinct('fingerprint')->count('fingerprint'),
                 'affected_users' => $base()->whereNotNull('user_id')->distinct('user_id')->count('user_id'),
             ],
@@ -31,7 +33,9 @@ class FrontendErrorStats
                 ->orderBy('date')
                 ->get(),
             'top_groups' => $base()
-                ->select('fingerprint', DB::raw('MAX(message) as message'), DB::raw('MAX(source) as source'), DB::raw('COUNT(*) as total'), DB::raw('MAX(occurred_at) as last_seen'))
+                // first_seen/last_seen per capire quando un bug e comparso e
+                // se una release lo ha davvero corretto.
+                ->select('fingerprint', DB::raw('MAX(message) as message'), DB::raw('MAX(source) as source'), DB::raw('COUNT(*) as total'), DB::raw('MIN(occurred_at) as first_seen'), DB::raw('MAX(occurred_at) as last_seen'))
                 ->groupBy('fingerprint')
                 ->orderByDesc('total')
                 ->limit(10)

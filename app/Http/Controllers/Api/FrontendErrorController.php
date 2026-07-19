@@ -53,6 +53,14 @@ class FrontendErrorController extends Controller
         return response()->json($errors);
     }
 
+    /** Dettaglio completo di un report per la dashboard (stack inclusi). */
+    public function show(FrontendError $error): JsonResponse
+    {
+        return response()->json([
+            'data' => $error->load('user:id,name,email'),
+        ]);
+    }
+
     public function stats(Request $request, FrontendErrorStats $stats): JsonResponse
     {
         $validated = $request->validate([

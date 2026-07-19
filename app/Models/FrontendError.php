@@ -13,6 +13,7 @@ class FrontendError extends Model
 
     protected $fillable = [
         'user_id',
+        'kind',
         'fingerprint',
         'message',
         'stack',
@@ -20,9 +21,16 @@ class FrontendError extends Model
         'source',
         'url',
         'page',
+        'route',
         'user_agent',
         'browser',
+        'os',
+        'viewport',
+        'language',
         'app_version',
+        'commit_sha',
+        'environment',
+        'data',
         'ip',
         'occurred_at',
     ];
@@ -31,6 +39,7 @@ class FrontendError extends Model
     {
         return [
             'occurred_at' => 'datetime',
+            'data' => 'array',
         ];
     }
 
@@ -40,11 +49,11 @@ class FrontendError extends Model
     }
 
     /**
-     * I report sono dati diagnostici, non storici: dopo 90 giorni non servono
-     * piu (model:prune va schedulato in routes/console.php).
+     * I report sono dati diagnostici, non storici: la ritenzione e definita
+     * in config/monitoring.php (model:prune schedulato in routes/console.php).
      */
     public function prunable(): Builder
     {
-        return static::where('created_at', '<', now()->subDays(90));
+        return static::where('created_at', '<', now()->subDays((int) config('monitoring.retention_days')));
     }
 }
