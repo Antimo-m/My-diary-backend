@@ -65,6 +65,16 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Crash del frontend raccolti da /api/frontend-errors: file separato
+        // e rotato, cosi non inquinano il log applicativo.
+        'frontend' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/frontend.log'),
+            'level' => 'error',
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+
         'daily' => [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),

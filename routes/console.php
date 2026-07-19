@@ -21,6 +21,9 @@ Schedule::command(app()->environment('local') ? 'kanban:send-reminders --send-no
     ->everyMinute()
     ->withoutOverlapping(2);
 
+// Ritenzione dei report di errore frontend: vedi FrontendError::prunable().
+Schedule::command('model:prune')->daily();
+
 Artisan::command('local:schedule-worker {--parent= : PID del processo php artisan serve}', function (): void {
     $parentPid = (int) $this->option('parent');
 

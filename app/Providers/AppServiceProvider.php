@@ -49,6 +49,10 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(30)->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip()));
         });
 
+        // Raccolta crash frontend: endpoint pubblico, quindi tetto severo per
+        // IP. Un client sano non supera mai questa soglia grazie al dedupe.
+        RateLimiter::for('frontend-errors', fn (Request $request): Limit => Limit::perMinute(10)->by($request->ip()));
+
         RateLimiter::for('password-reset', function (Request $request): Limit {
             $email = Str::lower((string) $request->input('email', 'guest'));
 

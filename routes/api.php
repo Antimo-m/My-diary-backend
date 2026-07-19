@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\BachecaColumnController;
 use App\Http\Controllers\Api\BachecaLabelController;
 use App\Http\Controllers\Api\BachecaTaskController;
 use App\Http\Controllers\Api\DiaryNoteController;
+use App\Http\Controllers\Api\FrontendErrorController;
 use App\Http\Controllers\Api\HomeController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\SecretDiaryAuthController;
@@ -18,6 +19,10 @@ use Illuminate\Support\Facades\Route;
 // asset URLs like the diary covers) and under the /v1 prefix used by the SPA.
 $apiV1Routes = function (): void {
     Route::get('/home', [HomeController::class, 'show'])->middleware('throttle:api-read');
+
+    // Raccolta crash del frontend: pubblica per catturare anche gli errori
+    // pre-login, protetta dal throttle dedicato.
+    Route::post('/frontend-errors', [FrontendErrorController::class, 'store'])->middleware('throttle:frontend-errors');
 
     Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:registration');
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth-login');
@@ -75,6 +80,11 @@ $apiV1Routes = function (): void {
         Route::post('/bacheca/labels', [BachecaLabelController::class, 'store'])->middleware('throttle:api-write');
         Route::put('/bacheca/labels/{label}', [BachecaLabelController::class, 'update'])->middleware('throttle:api-write');
         Route::delete('/bacheca/labels/{label}', [BachecaLabelController::class, 'destroy'])->middleware('throttle:api-write');
+
+        Route::middleware('admin')->prefix('monitoring')->group(function (): void {
+            Route::get('/errors', [FrontendErrorController::class, 'index'])->middleware('throttle:api-read');
+            Route::get('/errors/stats', [FrontendErrorController::class, 'stats'])->middleware('throttle:api-read');
+        });
     });
 };
 
