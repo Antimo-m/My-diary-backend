@@ -232,6 +232,7 @@ class AuthController extends Controller
             'default_task_reminder',
             'locale',
             'timezone',
+            'is_admin',
         ]);
     }
 }

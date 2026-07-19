@@ -32,6 +32,7 @@ class User extends Authenticatable
             'secret_diary_password_set_at' => 'datetime',
             'show_welcome_modal' => 'boolean',
             'email_notifications_enabled' => 'boolean',
+            'is_admin' => 'boolean',
         ];
     }
 
