@@ -50,8 +50,9 @@ class AppServiceProvider extends ServiceProvider
         });
 
         // Raccolta crash frontend: endpoint pubblico, quindi tetto severo per
-        // IP. Un client sano non supera mai questa soglia grazie al dedupe.
-        RateLimiter::for('frontend-errors', fn (Request $request): Limit => Limit::perMinute(10)->by($request->ip()));
+        // IP (config/monitoring.php). Un client sano non supera mai questa
+        // soglia grazie al dedupe del modulo React.
+        RateLimiter::for('frontend-errors', fn (Request $request): Limit => Limit::perMinute((int) config('monitoring.reports_per_minute'))->by($request->ip()));
 
         RateLimiter::for('password-reset', function (Request $request): Limit {
             $email = Str::lower((string) $request->input('email', 'guest'));

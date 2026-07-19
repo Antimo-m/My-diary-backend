@@ -21,8 +21,8 @@ $apiV1Routes = function (): void {
     Route::get('/home', [HomeController::class, 'show'])->middleware('throttle:api-read');
 
     // Raccolta crash del frontend: pubblica per catturare anche gli errori
-    // pre-login, protetta dal throttle dedicato.
-    Route::post('/frontend-errors', [FrontendErrorController::class, 'store'])->middleware('throttle:frontend-errors');
+    // pre-login, protetta dal throttle dedicato e dal feature flag.
+    Route::post('/frontend-errors', [FrontendErrorController::class, 'store'])->middleware(['feature:monitoring', 'throttle:frontend-errors']);
 
     Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:registration');
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth-login');
@@ -81,9 +81,10 @@ $apiV1Routes = function (): void {
         Route::put('/bacheca/labels/{label}', [BachecaLabelController::class, 'update'])->middleware('throttle:api-write');
         Route::delete('/bacheca/labels/{label}', [BachecaLabelController::class, 'destroy'])->middleware('throttle:api-write');
 
-        Route::middleware('admin')->prefix('monitoring')->group(function (): void {
+        Route::middleware(['feature:monitoring', 'role:admin'])->prefix('monitoring')->group(function (): void {
             Route::get('/errors', [FrontendErrorController::class, 'index'])->middleware('throttle:api-read');
             Route::get('/errors/stats', [FrontendErrorController::class, 'stats'])->middleware('throttle:api-read');
+            Route::get('/errors/{error}', [FrontendErrorController::class, 'show'])->middleware('throttle:api-read');
         });
     });
 };

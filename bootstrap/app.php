@@ -1,7 +1,8 @@
 <?php
 
+use App\Http\Middleware\EnsureFeatureEnabled;
 use App\Http\Middleware\EnsureSecretDiaryUnlocked;
-use App\Http\Middleware\EnsureUserIsAdmin;
+use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetApiLocale;
 use Illuminate\Foundation\Application;
@@ -25,7 +26,8 @@ return Application::configure(basePath: dirname(__DIR__))
             SetApiLocale::class,
         ]);
         $middleware->alias([
-            'admin' => EnsureUserIsAdmin::class,
+            'feature' => EnsureFeatureEnabled::class,
+            'role' => EnsureUserHasRole::class,
             'secret-diary.unlocked' => EnsureSecretDiaryUnlocked::class,
         ]);
     })

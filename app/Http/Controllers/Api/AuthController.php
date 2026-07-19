@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\Audit\AuditLogger;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -173,7 +174,7 @@ class AuthController extends Controller
             $request->session()->regenerateToken();
         }
 
-        DB::transaction(function () use ($user): void {
+        DB::transaction(function () use ($request, $user): void {
             $user->diaryNotes()->pluck('cover_image')->filter()->each(
                 fn (string $coverImage) => Storage::disk('local')->delete($coverImage)
             );
@@ -183,6 +184,12 @@ class AuthController extends Controller
 
             $user->tokens()->delete();
             DB::table('sessions')->where('user_id', $user->getKey())->delete();
+
+            // Traccia audit prima del delete: sopravvive alla cancellazione
+            // (user_id diventa null, l'email resta nei meta per il supporto).
+            app(AuditLogger::class)->record('account.deleted', $user, $user, [
+                'email' => $user->email,
+            ], $request->ip());
 
             $user->delete();
         });
@@ -223,16 +230,20 @@ class AuthController extends Controller
 
     private function serializeUser(User $user): array
     {
-        return $user->only([
-            'id',
-            'name',
-            'email',
-            'show_welcome_modal',
-            'email_notifications_enabled',
-            'default_task_reminder',
-            'locale',
-            'timezone',
-            'is_admin',
-        ]);
+        return [
+            ...$user->only([
+                'id',
+                'name',
+                'email',
+                'show_welcome_modal',
+                'email_notifications_enabled',
+                'default_task_reminder',
+                'locale',
+                'timezone',
+                'role',
+            ]),
+            // Campo derivato mantenuto per il frontend (voce navbar, gate UI).
+            'is_admin' => $user->isAdmin(),
+        ];
     }
 }
