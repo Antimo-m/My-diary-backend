@@ -1,0 +1,27 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('audit_logs', function (Blueprint $table): void {
+            $table->id();
+            // nullOnDelete: l'audit sopravvive alla cancellazione dell'attore.
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('action', 100)->index();
+            $table->nullableMorphs('subject');
+            $table->json('meta')->nullable();
+            $table->string('ip', 45)->nullable();
+            $table->timestamp('created_at')->index();
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('audit_logs');
+    }
+};

@@ -20,6 +20,22 @@ class User extends Authenticatable
     use HasApiTokens, HasFactory, Notifiable;
 
     /**
+     * Ruoli disponibili, dal meno al piu privilegiato. Il ruolo non e MAI
+     * assegnabile via API (fuori dal fillable): solo console o seed.
+     */
+    public const ROLES = ['user', 'support', 'developer', 'admin', 'super_admin'];
+
+    public function hasRole(string ...$roles): bool
+    {
+        return $this->role === 'super_admin' || in_array($this->role, $roles, true);
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->hasRole('admin');
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -32,7 +48,6 @@ class User extends Authenticatable
             'secret_diary_password_set_at' => 'datetime',
             'show_welcome_modal' => 'boolean',
             'email_notifications_enabled' => 'boolean',
-            'is_admin' => 'boolean',
         ];
     }
 
