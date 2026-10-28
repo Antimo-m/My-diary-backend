@@ -17,9 +17,9 @@ Backend REST API di **MyDiary**, applicazione web pensata per combinare diario p
 - Registrazione e autenticazione utenti
 - Gestione diario personale
 - Upload immagini per le pagine del diario
-- Diario segreto protetto da password
+- Diario segreto 
 - Gestione bacheche Kanban
 - Creazione, modifica ed eliminazione colonne
 - Gestione task e label
 - Sistema di promemoria e notifiche
-- API dedicate al frontend React
+
